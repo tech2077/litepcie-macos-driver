@@ -1,0 +1,654 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		021DAABA2AAE8D310055D471 /* PCIDriverKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 021DAAB92AAE8D310055D471 /* PCIDriverKit.framework */; };
+		02A93C602AAD4DF6001E4E3A /* DriverKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 02A93C5F2AAD4DF6001E4E3A /* DriverKit.framework */; };
+		02A93C632AAD4DF6001E4E3A /* litepcie.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 02A93C622AAD4DF6001E4E3A /* litepcie.cpp */; };
+		02A93C652AAD4DF6001E4E3A /* litepcie.iig in Sources */ = {isa = PBXBuildFile; fileRef = 02A93C642AAD4DF6001E4E3A /* litepcie.iig */; };
+		02D560132AAD6962006843ED /* ExtensionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02D5600F2AAD6962006843ED /* ExtensionManager.swift */; };
+		02D560142AAD6962006843ED /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02D560102AAD6962006843ED /* main.swift */; };
+		02D560152AAD6BD0006843ED /* litex.litepcie.dext in Embed System Extensions */ = {isa = PBXBuildFile; fileRef = 02A93C5C2AAD4DF6001E4E3A /* litex.litepcie.dext */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		02F5BFC52AAE648B00A35930 /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 02F5BFC22AAE648B00A35930 /* main.cpp */; };
+		02F5BFC62AAE648B00A35930 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 02F5BFC32AAE648B00A35930 /* Info.plist */; };
+		02F5BFC72AAE649900A35930 /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 02D560282AAE2EB9006843ED /* CoreFoundation.framework */; };
+		02F5BFC82AAE64A000A35930 /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 02D5602A2AAE2EBE006843ED /* IOKit.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		02D560162AAD6BD0006843ED /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 02A93C532AAD4DF6001E4E3A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 02A93C5B2AAD4DF6001E4E3A;
+			remoteInfo = litepcie;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		02D560182AAD6BD0006843ED /* Embed System Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(SYSTEM_EXTENSIONS_FOLDER_PATH)";
+			dstSubfolderSpec = 16;
+			files = (
+				02D560152AAD6BD0006843ED /* litex.litepcie.dext in Embed System Extensions */,
+			);
+			name = "Embed System Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		021DAAB92AAE8D310055D471 /* PCIDriverKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = PCIDriverKit.framework; path = System/DriverKit/System/Library/Frameworks/PCIDriverKit.framework; sourceTree = SDKROOT; };
+		02A93C5C2AAD4DF6001E4E3A /* litex.litepcie.dext */ = {isa = PBXFileReference; explicitFileType = "wrapper.driver-extension"; includeInIndex = 0; path = litex.litepcie.dext; sourceTree = BUILT_PRODUCTS_DIR; };
+		02A93C5F2AAD4DF6001E4E3A /* DriverKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = DriverKit.framework; path = Library/Frameworks/DriverKit.framework; sourceTree = DEVELOPER_DIR; };
+		02A93C622AAD4DF6001E4E3A /* litepcie.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = litepcie.cpp; sourceTree = "<group>"; };
+		02A93C642AAD4DF6001E4E3A /* litepcie.iig */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.iig; path = litepcie.iig; sourceTree = "<group>"; };
+		02A93C662AAD4DF6001E4E3A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		02D55FD72AAD5A25006843ED /* litepcie.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = litepcie.entitlements; sourceTree = "<group>"; };
+		02D55FFE2AAD6845006843ED /* litepcie-manager.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "litepcie-manager.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		02D560092AAD6845006843ED /* litepcie_manager.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = litepcie_manager.entitlements; sourceTree = "<group>"; };
+		02D5600F2AAD6962006843ED /* ExtensionManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ExtensionManager.swift; sourceTree = "<group>"; };
+		02D560102AAD6962006843ED /* main.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		02D560282AAE2EB9006843ED /* CoreFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreFoundation.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX13.1.sdk/System/Library/Frameworks/CoreFoundation.framework; sourceTree = DEVELOPER_DIR; };
+		02D5602A2AAE2EBE006843ED /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX13.1.sdk/System/Library/Frameworks/IOKit.framework; sourceTree = DEVELOPER_DIR; };
+		02F5BFAF2AAE644400A35930 /* litepcie-client.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "litepcie-client.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		02F5BFC22AAE648B00A35930 /* main.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
+		02F5BFC32AAE648B00A35930 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		02F5BFC42AAE648B00A35930 /* litepcie_client.entitlements */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.entitlements; path = litepcie_client.entitlements; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		02A93C592AAD4DF6001E4E3A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				021DAABA2AAE8D310055D471 /* PCIDriverKit.framework in Frameworks */,
+				02A93C602AAD4DF6001E4E3A /* DriverKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		02D55FFB2AAD6845006843ED /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		02F5BFAC2AAE644400A35930 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				02F5BFC72AAE649900A35930 /* CoreFoundation.framework in Frameworks */,
+				02F5BFC82AAE64A000A35930 /* IOKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		02A93C522AAD4DF6001E4E3A = {
+			isa = PBXGroup;
+			children = (
+				02A93C612AAD4DF6001E4E3A /* litepcie */,
+				02D55FFF2AAD6845006843ED /* litepcie-manager */,
+				02F5BFB02AAE644400A35930 /* litepcie-client */,
+				02A93C5E2AAD4DF6001E4E3A /* Frameworks */,
+				02A93C5D2AAD4DF6001E4E3A /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		02A93C5D2AAD4DF6001E4E3A /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				02A93C5C2AAD4DF6001E4E3A /* litex.litepcie.dext */,
+				02D55FFE2AAD6845006843ED /* litepcie-manager.app */,
+				02F5BFAF2AAE644400A35930 /* litepcie-client.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		02A93C5E2AAD4DF6001E4E3A /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				021DAAB92AAE8D310055D471 /* PCIDriverKit.framework */,
+				02D5602A2AAE2EBE006843ED /* IOKit.framework */,
+				02D560282AAE2EB9006843ED /* CoreFoundation.framework */,
+				02A93C5F2AAD4DF6001E4E3A /* DriverKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		02A93C612AAD4DF6001E4E3A /* litepcie */ = {
+			isa = PBXGroup;
+			children = (
+				02A93C622AAD4DF6001E4E3A /* litepcie.cpp */,
+				02A93C642AAD4DF6001E4E3A /* litepcie.iig */,
+				02A93C662AAD4DF6001E4E3A /* Info.plist */,
+				02D55FD72AAD5A25006843ED /* litepcie.entitlements */,
+			);
+			path = litepcie;
+			sourceTree = "<group>";
+		};
+		02D55FFF2AAD6845006843ED /* litepcie-manager */ = {
+			isa = PBXGroup;
+			children = (
+				02D5600F2AAD6962006843ED /* ExtensionManager.swift */,
+				02D560102AAD6962006843ED /* main.swift */,
+				02D560092AAD6845006843ED /* litepcie_manager.entitlements */,
+			);
+			path = "litepcie-manager";
+			sourceTree = "<group>";
+		};
+		02F5BFB02AAE644400A35930 /* litepcie-client */ = {
+			isa = PBXGroup;
+			children = (
+				02F5BFC32AAE648B00A35930 /* Info.plist */,
+				02F5BFC42AAE648B00A35930 /* litepcie_client.entitlements */,
+				02F5BFC22AAE648B00A35930 /* main.cpp */,
+			);
+			path = "litepcie-client";
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXHeadersBuildPhase section */
+		02A93C572AAD4DF6001E4E3A /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXHeadersBuildPhase section */
+
+/* Begin PBXNativeTarget section */
+		02A93C5B2AAD4DF6001E4E3A /* litepcie */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 02A93C692AAD4DF6001E4E3A /* Build configuration list for PBXNativeTarget "litepcie" */;
+			buildPhases = (
+				02A93C572AAD4DF6001E4E3A /* Headers */,
+				02A93C582AAD4DF6001E4E3A /* Sources */,
+				02A93C592AAD4DF6001E4E3A /* Frameworks */,
+				02A93C5A2AAD4DF6001E4E3A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = litepcie;
+			productName = litepcie;
+			productReference = 02A93C5C2AAD4DF6001E4E3A /* litex.litepcie.dext */;
+			productType = "com.apple.product-type.driver-extension";
+		};
+		02D55FFD2AAD6845006843ED /* litepcie-manager */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 02D5600A2AAD6845006843ED /* Build configuration list for PBXNativeTarget "litepcie-manager" */;
+			buildPhases = (
+				02D55FFA2AAD6845006843ED /* Sources */,
+				02D55FFB2AAD6845006843ED /* Frameworks */,
+				02D55FFC2AAD6845006843ED /* Resources */,
+				02D560182AAD6BD0006843ED /* Embed System Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				02D560172AAD6BD0006843ED /* PBXTargetDependency */,
+			);
+			name = "litepcie-manager";
+			productName = "litepcie-manager";
+			productReference = 02D55FFE2AAD6845006843ED /* litepcie-manager.app */;
+			productType = "com.apple.product-type.application";
+		};
+		02F5BFAE2AAE644400A35930 /* litepcie-client */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 02F5BFBF2AAE644500A35930 /* Build configuration list for PBXNativeTarget "litepcie-client" */;
+			buildPhases = (
+				02F5BFAB2AAE644400A35930 /* Sources */,
+				02F5BFAC2AAE644400A35930 /* Frameworks */,
+				02F5BFAD2AAE644400A35930 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "litepcie-client";
+			productName = "litepcie-client";
+			productReference = 02F5BFAF2AAE644400A35930 /* litepcie-client.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		02A93C532AAD4DF6001E4E3A /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1420;
+				LastUpgradeCheck = 1420;
+				TargetAttributes = {
+					02A93C5B2AAD4DF6001E4E3A = {
+						CreatedOnToolsVersion = 14.2;
+					};
+					02D55FFD2AAD6845006843ED = {
+						CreatedOnToolsVersion = 14.2;
+						LastSwiftMigration = 1420;
+					};
+					02F5BFAE2AAE644400A35930 = {
+						CreatedOnToolsVersion = 14.2;
+					};
+				};
+			};
+			buildConfigurationList = 02A93C562AAD4DF6001E4E3A /* Build configuration list for PBXProject "litepcie" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 02A93C522AAD4DF6001E4E3A;
+			productRefGroup = 02A93C5D2AAD4DF6001E4E3A /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				02A93C5B2AAD4DF6001E4E3A /* litepcie */,
+				02D55FFD2AAD6845006843ED /* litepcie-manager */,
+				02F5BFAE2AAE644400A35930 /* litepcie-client */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		02A93C5A2AAD4DF6001E4E3A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		02D55FFC2AAD6845006843ED /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		02F5BFAD2AAE644400A35930 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				02F5BFC62AAE648B00A35930 /* Info.plist in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		02A93C582AAD4DF6001E4E3A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				02A93C652AAD4DF6001E4E3A /* litepcie.iig in Sources */,
+				02A93C632AAD4DF6001E4E3A /* litepcie.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		02D55FFA2AAD6845006843ED /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				02D560142AAD6962006843ED /* main.swift in Sources */,
+				02D560132AAD6962006843ED /* ExtensionManager.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		02F5BFAB2AAE644400A35930 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				02F5BFC52AAE648B00A35930 /* main.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		02D560172AAD6BD0006843ED /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 02A93C5B2AAD4DF6001E4E3A /* litepcie */;
+			targetProxy = 02D560162AAD6BD0006843ED /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		02A93C672AAD4DF6001E4E3A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DRIVERKIT_DEPLOYMENT_TARGET = 20.4;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = driverkit;
+			};
+			name = Debug;
+		};
+		02A93C682AAD4DF6001E4E3A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DRIVERKIT_DEPLOYMENT_TARGET = 20.4;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = driverkit;
+			};
+			name = Release;
+		};
+		02A93C6A2AAD4DF6001E4E3A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				DRIVERKIT_DEPLOYMENT_TARGET = 21.0;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SDKROOT)/System/DriverKit/System/Library/Frameworks",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = litepcie/Info.plist;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = litex.litepcie;
+				PRODUCT_NAME = "$(inherited)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				RUN_CLANG_STATIC_ANALYZER = YES;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Debug;
+		};
+		02A93C6B2AAD4DF6001E4E3A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				DRIVERKIT_DEPLOYMENT_TARGET = 21.0;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SDKROOT)/System/DriverKit/System/Library/Frameworks",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = litepcie/Info.plist;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = litex.litepcie;
+				PRODUCT_NAME = "$(inherited)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				RUN_CLANG_STATIC_ANALYZER = YES;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Release;
+		};
+		02D5600B2AAD6845006843ED /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = app.icns;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = "litepcie-manager/litepcie_manager.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "litex.litepcie-manager";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		02D5600C2AAD6845006843ED /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = app.icns;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = "litepcie-manager/litepcie_manager.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "litex.litepcie-manager";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		02F5BFC02AAE644500A35930 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "litepcie-client/litepcie_client.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSMainStoryboardFile = Main;
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "litex.litepcie-client";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Debug;
+		};
+		02F5BFC12AAE644500A35930 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "litepcie-client/litepcie_client.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSMainStoryboardFile = Main;
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "litex.litepcie-client";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		02A93C562AAD4DF6001E4E3A /* Build configuration list for PBXProject "litepcie" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				02A93C672AAD4DF6001E4E3A /* Debug */,
+				02A93C682AAD4DF6001E4E3A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		02A93C692AAD4DF6001E4E3A /* Build configuration list for PBXNativeTarget "litepcie" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				02A93C6A2AAD4DF6001E4E3A /* Debug */,
+				02A93C6B2AAD4DF6001E4E3A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		02D5600A2AAD6845006843ED /* Build configuration list for PBXNativeTarget "litepcie-manager" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				02D5600B2AAD6845006843ED /* Debug */,
+				02D5600C2AAD6845006843ED /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		02F5BFBF2AAE644500A35930 /* Build configuration list for PBXNativeTarget "litepcie-client" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				02F5BFC02AAE644500A35930 /* Debug */,
+				02F5BFC12AAE644500A35930 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 02A93C532AAD4DF6001E4E3A /* Project object */;
+}

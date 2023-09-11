@@ -1,0 +1,11 @@
+.DS_Store
+
+.vscode/
+build/
+
+## User settings
+xcuserdata/
+
+## Xcode 8 and earlier
+*.xcscmblueprint
+*.xccheckout
