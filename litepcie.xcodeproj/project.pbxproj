@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		021DAABA2AAE8D310055D471 /* PCIDriverKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 021DAAB92AAE8D310055D471 /* PCIDriverKit.framework */; };
+		024740902AB6471F00B4757C /* litepcie_userclient.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0247408E2AB6471F00B4757C /* litepcie_userclient.cpp */; };
+		024740912AB6471F00B4757C /* litepcie_userclient.iig in Sources */ = {isa = PBXBuildFile; fileRef = 0247408F2AB6471F00B4757C /* litepcie_userclient.iig */; };
 		02A93C602AAD4DF6001E4E3A /* DriverKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 02A93C5F2AAD4DF6001E4E3A /* DriverKit.framework */; };
 		02A93C632AAD4DF6001E4E3A /* litepcie.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 02A93C622AAD4DF6001E4E3A /* litepcie.cpp */; };
 		02A93C652AAD4DF6001E4E3A /* litepcie.iig in Sources */ = {isa = PBXBuildFile; fileRef = 02A93C642AAD4DF6001E4E3A /* litepcie.iig */; };
@@ -46,6 +48,8 @@
 
 /* Begin PBXFileReference section */
 		021DAAB92AAE8D310055D471 /* PCIDriverKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = PCIDriverKit.framework; path = System/DriverKit/System/Library/Frameworks/PCIDriverKit.framework; sourceTree = SDKROOT; };
+		0247408E2AB6471F00B4757C /* litepcie_userclient.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = litepcie_userclient.cpp; sourceTree = "<group>"; };
+		0247408F2AB6471F00B4757C /* litepcie_userclient.iig */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.iig; path = litepcie_userclient.iig; sourceTree = "<group>"; };
 		02A93C5C2AAD4DF6001E4E3A /* litex.litepcie.dext */ = {isa = PBXFileReference; explicitFileType = "wrapper.driver-extension"; includeInIndex = 0; path = litex.litepcie.dext; sourceTree = BUILT_PRODUCTS_DIR; };
 		02A93C5F2AAD4DF6001E4E3A /* DriverKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = DriverKit.framework; path = Library/Frameworks/DriverKit.framework; sourceTree = DEVELOPER_DIR; };
 		02A93C622AAD4DF6001E4E3A /* litepcie.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = litepcie.cpp; sourceTree = "<group>"; };
@@ -132,6 +136,8 @@
 				02A93C642AAD4DF6001E4E3A /* litepcie.iig */,
 				02A93C662AAD4DF6001E4E3A /* Info.plist */,
 				02D55FD72AAD5A25006843ED /* litepcie.entitlements */,
+				0247408E2AB6471F00B4757C /* litepcie_userclient.cpp */,
+				0247408F2AB6471F00B4757C /* litepcie_userclient.iig */,
 			);
 			path = litepcie;
 			sourceTree = "<group>";
@@ -296,7 +302,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				02A93C652AAD4DF6001E4E3A /* litepcie.iig in Sources */,
+				024740912AB6471F00B4757C /* litepcie_userclient.iig in Sources */,
 				02A93C632AAD4DF6001E4E3A /* litepcie.cpp in Sources */,
+				024740902AB6471F00B4757C /* litepcie_userclient.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -446,7 +454,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
-				DRIVERKIT_DEPLOYMENT_TARGET = 21.0;
+				DRIVERKIT_DEPLOYMENT_TARGET = 21.6;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(SDKROOT)/System/DriverKit/System/Library/Frameworks",
@@ -470,7 +478,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
-				DRIVERKIT_DEPLOYMENT_TARGET = 21.0;
+				DRIVERKIT_DEPLOYMENT_TARGET = 21.6;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(SDKROOT)/System/DriverKit/System/Library/Frameworks",

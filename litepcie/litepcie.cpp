@@ -8,8 +8,11 @@
 #include <os/log.h>
 
 #include <DriverKit/IOLib.h>
+#include <DriverKit/IOMemoryMap.h>
+#include <DriverKit/IOTimerDispatchSource.h>
 #include <DriverKit/IOUserClient.h>
 #include <DriverKit/IOUserServer.h>
+#include <DriverKit/OSData.h>
 
 #include <PCIDriverKit/PCIDriverKit.h>
 
@@ -19,6 +22,7 @@
 
 struct litepcie_IVars {
     IOPCIDevice* pciDevice;
+    IODispatchQueue* dispatchQueue = nullptr;
 };
 
 bool litepcie::init(void)
@@ -59,6 +63,17 @@ IMPL(litepcie, Start)
         Log("super::Start failed with error: 0x%08x", ret);
         goto Exit;
     }
+
+    ivars->dispatchQueue = nullptr;
+    ret = this->CopyDispatchQueue(kIOServiceDefaultQueueName, &ivars->dispatchQueue);
+    if (ret == KERN_SUCCESS && ivars->dispatchQueue != nullptr) {
+        ret = this->SetDispatchQueue(kIOUserClientQueueNameExternalMethod, ivars->dispatchQueue);
+        if (ret != kIOReturnSuccess) {
+            Log("could not set dispatch queue with error: 0x%08x", ret);
+            goto Exit;
+        }
+    }
+    OSSafeReleaseNULL(ivars->dispatchQueue);
 
     // try to cast the provider object to a PCI device because thats what it should be
     ivars->pciDevice = OSDynamicCast(IOPCIDevice, provider);
@@ -128,17 +143,56 @@ kern_return_t
 IMPL(litepcie, Stop)
 {
     kern_return_t ret = kIOReturnSuccess;
+    __block _Atomic uint32_t cancelCount = 0;
 
     Log("Stop() entered");
 
     // closes the pci device
     // this also handles clearing bus master enable and
     // memory space enable command bits
-    ivars->pciDevice->Close(this, 0);
+    if (ivars->pciDevice != nullptr) {
+        ivars->pciDevice->Close(this, 0);
+    }
 
-    ret = super::Stop(provider, SUPERDISPATCH);
-    if (ret != kIOReturnSuccess) {
-        Log("super::Stop failed with error: 0x%08x", ret);
+    if (ivars->dispatchQueue != nullptr) {
+        ++cancelCount;
+    }
+
+    // If there's somehow nothing to cancel, "Stop" quickly and exit.
+    if (cancelCount == 0) {
+        ret = Stop(provider, SUPERDISPATCH);
+        if (ret != kIOReturnSuccess) {
+            Log("Stop() - super::Stop failed with error: 0x%08x.", ret);
+        }
+
+        Log("Stop() - Finished.");
+
+        return ret;
+    }
+    // Otherwise, wait for some Cancels to get completed.
+
+    // Retain the driver instance and the provider so the finalization can properly stop the driver
+    this->retain();
+    provider->retain();
+
+    // Re-use this block, with each cancel action taking a count off, until the last cancel stops the dext
+    void (^finalize)(void) = ^{
+        if (__c11_atomic_fetch_sub(&cancelCount, 1U, __ATOMIC_RELAXED) <= 1) {
+
+            kern_return_t status = Stop(provider, SUPERDISPATCH);
+            if (status != kIOReturnSuccess) {
+                Log("Stop() - super::Stop failed with error: 0x%08x.", status);
+            }
+
+            Log("Stop() - Finished.");
+
+            this->release();
+            provider->release();
+        }
+    };
+
+    if (ivars->dispatchQueue != nullptr) {
+        ivars->dispatchQueue->Cancel(finalize);
     }
 
     Log("Stop() finished");
@@ -150,6 +204,7 @@ void litepcie::free(void)
 {
     Log("free() entered");
 
+    OSSafeReleaseNULL(ivars->dispatchQueue);
     IOSafeDeleteNULL(ivars, litepcie_IVars, 1);
 
     super::free();
@@ -184,15 +239,5 @@ IMPL(litepcie, NewUserClient)
     Log("NewUserClient() finished");
 
 Exit:
-    return ret;
-}
-
-kern_return_t litepcie::ExternalMethod(uint64_t selector, IOUserClientMethodArguments* arguments, const IOUserClientMethodDispatch* dispatch, OSObject* target, void* reference)
-{
-    kern_return_t ret = kIOReturnSuccess;
-    Log("ExternalMethod() entered");
-
-Exit:
-    Log("ExternalMethod() finished");
     return ret;
 }

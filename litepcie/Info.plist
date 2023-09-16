@@ -31,7 +31,7 @@
 				<key>IOClass</key>
 				<string>IOUserUserClient</string>
 				<key>IOUserClass</key>
-				<string>litepcie</string>
+				<string>litepcie_userclient</string>
 			</dict>
 		</dict>
 	</dict>

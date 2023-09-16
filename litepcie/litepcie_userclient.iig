@@ -1,25 +1,25 @@
 //
-//  litepcie_userclient.iig
+//  litepcie.iig
 //  litepcie
 //
 //  Created by skolaut on 9/9/23.
 //
 
-#ifndef litepcie_userclient_h
-#define litepcie_userclient_h
+#ifndef litepcie_h
+#define litepcie_h
 
 #include <Availability.h>
 #include <DriverKit/IOLib.h>
 #include <DriverKit/IOUserClient.iig>
 
-class litepcie : public IOService {
+class litepcie_userclient : public IOUserClient {
 public:
     virtual bool init(void) override;
     virtual kern_return_t Start(IOService* provider) override;
     virtual kern_return_t Stop(IOService* provider) override;
     virtual void free(void) override;
-
-    virtual kern_return_t NewUserClient(uint32_t type, IOUserClient** userClient) override;
+    
+    virtual kern_return_t ExternalMethod(uint64_t selector, IOUserClientMethodArguments* arguments, const IOUserClientMethodDispatch* dispatch, OSObject* target, void* reference) override;
 };
 
-#endif /* litepcie_userclient_h */
+#endif /* litepcie_h */
