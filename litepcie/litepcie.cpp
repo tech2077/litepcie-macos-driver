@@ -64,16 +64,16 @@ IMPL(litepcie, Start)
         goto Exit;
     }
 
-    ivars->dispatchQueue = nullptr;
-    ret = this->CopyDispatchQueue(kIOServiceDefaultQueueName, &ivars->dispatchQueue);
-    if (ret == KERN_SUCCESS && ivars->dispatchQueue != nullptr) {
-        ret = this->SetDispatchQueue(kIOUserClientQueueNameExternalMethod, ivars->dispatchQueue);
-        if (ret != kIOReturnSuccess) {
-            Log("could not set dispatch queue with error: 0x%08x", ret);
-            goto Exit;
-        }
-    }
-    OSSafeReleaseNULL(ivars->dispatchQueue);
+    //    ivars->dispatchQueue = nullptr;
+    //    ret = this->CopyDispatchQueue(kIOServiceDefaultQueueName, &ivars->dispatchQueue);
+    //    if (ret == KERN_SUCCESS && ivars->dispatchQueue != nullptr) {
+    //        ret = this->SetDispatchQueue(kIOUserClientQueueNameExternalMethod, ivars->dispatchQueue);
+    //        if (ret != kIOReturnSuccess) {
+    //            Log("could not set dispatch queue with error: 0x%08x", ret);
+    //            goto Exit;
+    //        }
+    //    }
+    //    OSSafeReleaseNULL(ivars->dispatchQueue);
 
     // try to cast the provider object to a PCI device because thats what it should be
     ivars->pciDevice = OSDynamicCast(IOPCIDevice, provider);
@@ -239,5 +239,19 @@ IMPL(litepcie, NewUserClient)
     Log("NewUserClient() finished");
 
 Exit:
+    return ret;
+}
+
+kern_return_t litepcie::WriteMemory(uint64_t offset, uint32_t value)
+{
+    kern_return_t ret = kIOReturnSuccess;
+    ivars->pciDevice->MemoryWrite32(0, offset, value);
+    return ret;
+}
+
+kern_return_t litepcie::ReadMemory(uint64_t offset, uint32_t* dest)
+{
+    kern_return_t ret = kIOReturnSuccess;
+    ivars->pciDevice->MemoryRead32(0, offset, dest);
     return ret;
 }

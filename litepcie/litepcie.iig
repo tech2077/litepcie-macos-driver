@@ -5,8 +5,8 @@
 //  Created by skolaut on 9/9/23.
 //
 
-#ifndef litepcie_userclient_h
-#define litepcie_userclient_h
+#ifndef litepcie_h
+#define litepcie_h
 
 #include <Availability.h>
 #include <DriverKit/IOLib.h>
@@ -20,6 +20,10 @@ public:
     virtual void free(void) override;
 
     virtual kern_return_t NewUserClient(uint32_t type, IOUserClient** userClient) override;
+
+    /* Other methods */
+    kern_return_t WriteMemory(uint64_t offset, uint32_t value) LOCALONLY;
+    kern_return_t ReadMemory(uint64_t offset, uint32_t* dest) LOCALONLY;
 };
 
-#endif /* litepcie_userclient_h */
+#endif /* litepcie_h */

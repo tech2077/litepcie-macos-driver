@@ -5,8 +5,8 @@
 //  Created by skolaut on 9/9/23.
 //
 
-#ifndef litepcie_h
-#define litepcie_h
+#ifndef litepcie_userclient_h
+#define litepcie_userclient_h
 
 #include <Availability.h>
 #include <DriverKit/IOLib.h>
@@ -18,8 +18,11 @@ public:
     virtual kern_return_t Start(IOService* provider) override;
     virtual kern_return_t Stop(IOService* provider) override;
     virtual void free(void) override;
-    
+
     virtual kern_return_t ExternalMethod(uint64_t selector, IOUserClientMethodArguments* arguments, const IOUserClientMethodDispatch* dispatch, OSObject* target, void* reference) override;
+
+    kern_return_t HandleReadCSR(IOUserClientMethodArguments* arguments) LOCALONLY;
+    kern_return_t HandleWriteCSR(IOUserClientMethodArguments* arguments) LOCALONLY;
 };
 
-#endif /* litepcie_h */
+#endif /* litepcie_userclient_h */

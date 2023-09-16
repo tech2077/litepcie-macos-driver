@@ -21,6 +21,17 @@
 
 #define Log(fmt, ...) os_log(OS_LOG_DEFAULT, "litepcie_userclient - " fmt "\n", ##__VA_ARGS__)
 
+enum LitePCIeMessageType {
+    LITEPCIE_READ_CSR,
+    LITEPCIE_WRITE_CSR,
+};
+
+typedef struct {
+    uint64_t addr;
+    uint32_t value;
+
+} ExternalReadWriteCSRStruct;
+
 struct litepcie_userclient_IVars {
     litepcie* litepcie = nullptr;
 };
@@ -99,12 +110,104 @@ void litepcie_userclient::free(void)
     Log("free() finished");
 }
 
-
 kern_return_t litepcie_userclient::ExternalMethod(uint64_t selector, IOUserClientMethodArguments* arguments, const IOUserClientMethodDispatch* dispatch, OSObject* target, void* reference)
 {
     kern_return_t ret = kIOReturnSuccess;
     Log("ExternalMethod() entered");
     Log("ExternalMethod() selector: %lli", selector);
+
+    switch (selector) {
+    case LITEPCIE_READ_CSR: {
+        ret = HandleReadCSR(arguments);
+    } break;
+    case LITEPCIE_WRITE_CSR: {
+        ret = HandleWriteCSR(arguments);
+    } break;
+
+    default:
+        break;
+    }
+
+Exit:
+    Log("ExternalMethod() finished");
+    return ret;
+}
+
+kern_return_t litepcie_userclient::HandleReadCSR(IOUserClientMethodArguments* arguments)
+{
+    kern_return_t ret = kIOReturnSuccess;
+
+    ExternalReadWriteCSRStruct* input;
+    ExternalReadWriteCSRStruct output;
+
+    // bunch of checks to see if out input is valid on multiple levels
+    if (arguments == nullptr) {
+        Log("Arguments were null");
+        ret = kIOReturnBadArgument;
+        goto Exit;
+    }
+
+    if (arguments->structureInput != nullptr) {
+        input = (ExternalReadWriteCSRStruct*)arguments->structureInput->getBytesNoCopy();
+    } else {
+        Log("structureInput was null");
+        ret = kIOReturnBadArgument;
+        goto Exit;
+    }
+
+    if (input == nullptr) {
+        Log("input struct was null");
+        ret = kIOReturnBadArgument;
+        goto Exit;
+    }
+
+    // do the thing
+    output.addr = input->addr;
+    ivars->litepcie->ReadMemory(input->addr, &output.value);
+
+    // send our output out using osdata
+    arguments->structureOutput = OSData::withBytes(&output, sizeof(ExternalReadWriteCSRStruct));
+
+Exit:
+    Log("ExternalMethod() finished");
+    return ret;
+}
+
+kern_return_t litepcie_userclient::HandleWriteCSR(IOUserClientMethodArguments* arguments)
+{
+    kern_return_t ret = kIOReturnSuccess;
+
+    ExternalReadWriteCSRStruct* input;
+    ExternalReadWriteCSRStruct output;
+
+    // bunch of checks to see if out input is valid on multiple levels
+    if (arguments == nullptr) {
+        Log("Arguments were null");
+        ret = kIOReturnBadArgument;
+        goto Exit;
+    }
+
+    if (arguments->structureInput != nullptr) {
+        input = (ExternalReadWriteCSRStruct*)arguments->structureInput->getBytesNoCopy();
+    } else {
+        Log("structureInput was null");
+        ret = kIOReturnBadArgument;
+        goto Exit;
+    }
+
+    if (input == nullptr) {
+        Log("input struct was null");
+        ret = kIOReturnBadArgument;
+        goto Exit;
+    }
+
+    // do the thing
+    output.addr = input->addr;
+    ivars->litepcie->WriteMemory(input->addr, input->value);
+    ivars->litepcie->ReadMemory(output.addr, &output.value);
+
+    // send our output out using osdata
+    arguments->structureOutput = OSData::withBytes(&output, sizeof(ExternalReadWriteCSRStruct));
 
 Exit:
     Log("ExternalMethod() finished");
