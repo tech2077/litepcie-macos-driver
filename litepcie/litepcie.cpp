@@ -13,16 +13,23 @@
 #include <DriverKit/IOUserClient.h>
 #include <DriverKit/IOUserServer.h>
 #include <DriverKit/OSData.h>
+#include <DriverKit/DriverKit.h>
+
 
 #include <PCIDriverKit/PCIDriverKit.h>
 
 #include "litepcie.h"
+#include "config.h"
+#include "csr.h"
 
 #define Log(fmt, ...) os_log(OS_LOG_DEFAULT, "litepcie - " fmt "\n", ##__VA_ARGS__)
+
+#define CSR_TO_OFFSET(addr) ((addr) - CSR_BASE)
 
 struct litepcie_IVars {
     IOPCIDevice* pciDevice;
     IODispatchQueue* dispatchQueue = nullptr;
+    IOInterruptDispatchSource* interruptSource;
 };
 
 bool litepcie::init(void)
@@ -55,6 +62,17 @@ IMPL(litepcie, Start)
 {
     kern_return_t ret;
     uint32_t buf[64] = { 0 };
+    
+    uint64_t interruptType = 0;
+    uint32_t msiInterruptIndex = 0;
+    
+    OSAction* interruptOccuredAction;
+    
+    uint64_t bufferCapacity = DMA_BUFFER_TOTAL_SIZE;
+    uint64_t bufferAlignment = 0;
+    
+    uint64_t dmaFlags = 0;
+    uint32_t dmaSegmentCount = DMA_BUFFER_COUNT;
 
     Log("Start() entered");
 
@@ -110,23 +128,148 @@ IMPL(litepcie, Start)
     Log("BAR1: %x", buf[2]);
 
     // test our scratch register
-    ivars->pciDevice->MemoryRead32(0, 0x4, buf + 3);
+    ivars->pciDevice->MemoryRead32(0, CSR_TO_OFFSET(CSR_CTRL_SCRATCH_ADDR), buf + 3);
     Log("scratch: %x", buf[3]);
     buf[3] = 0xDEADBEEF;
-    ivars->pciDevice->MemoryWrite32(0, 0x4, buf[3]);
+    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_CTRL_SCRATCH_ADDR), buf[3]);
     buf[3] = 0xCAFECAFE;
-    ivars->pciDevice->MemoryRead32(0, 0x4, buf + 3);
+    ivars->pciDevice->MemoryRead32(0, CSR_TO_OFFSET(CSR_CTRL_SCRATCH_ADDR), buf + 3);
     Log("scratch: %x", buf[3]);
 
     // check led register and set pattern
-    ivars->pciDevice->MemoryRead32(0, 0x3800, buf + 3);
+    ivars->pciDevice->MemoryRead32(0, CSR_TO_OFFSET(CSR_LEDS_BASE), buf + 3);
     Log("led: %x", buf[3]);
     buf[3] = 0b0101;
-    ivars->pciDevice->MemoryWrite32(0, 0x3800, buf[3]);
+    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_LEDS_BASE), buf[3]);
     buf[3] = 0b0101;
-    ivars->pciDevice->MemoryRead32(0, 0x3800, buf + 3);
+    ivars->pciDevice->MemoryRead32(0, CSR_TO_OFFSET(CSR_LEDS_BASE), buf + 3);
     Log("led: %x", buf[3]);
+    
+    while((ret = IOInterruptDispatchSource::GetInterruptType(ivars->pciDevice, msiInterruptIndex, &interruptType)) == kIOReturnSuccess)
+    {
+        if ((interruptType & kIOInterruptTypePCIMessaged) != 0) {
+            break;
+        }
+        msiInterruptIndex += 1;
+    }
+    
+    ret = CopyDispatchQueue(kIOServiceDefaultQueueName, &(ivars->dispatchQueue));
+    if(ret != kIOReturnSuccess)
+    {
+        Log("failed to copy queue with error: 0x%08x", ret);
+        Stop(provider);
+        goto Exit;
+    }
+    
+    ret = IOInterruptDispatchSource::Create(ivars->pciDevice, msiInterruptIndex, ivars->dispatchQueue, &(ivars->interruptSource));
+    if(ret != kIOReturnSuccess)
+    {
+        Log("failed to create interrupt dispatch source");
+        Stop(provider);
+        goto Exit;
+    }
+    
+    ret = CreateActionInterruptOccurred(sizeof(void*), &interruptOccuredAction);
+    if(ret != kIOReturnSuccess)
+    {
+        Log("failed to create interrupt action");
+        Stop(provider);
+        goto Exit;
+    }
+    
+    ret = ivars->interruptSource->SetHandler(interruptOccuredAction);
+    if(ret != kIOReturnSuccess)
+    {
+        Log("failed to set interrupt handler");
+        Stop(provider);
+        return false;
+    }
 
+    ret = ivars->interruptSource->SetEnable(true);
+    if(ret != kIOReturnSuccess)
+    {
+        Log("failed to enable interrupt source");
+        Stop(provider);
+        return false;
+    }
+    
+    IOAddressSegment virtualAddressSegment;
+    IOBufferMemoryDescriptor* dmaBuffer;
+    ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionOut, bufferCapacity, bufferAlignment, &dmaBuffer);
+    if(ret != kIOReturnSuccess)
+    {
+        Log("failed to create dma buffer");
+        Stop(provider);
+        return false;
+    }
+    
+    dmaBuffer->SetLength(bufferCapacity);
+    dmaBuffer->GetAddressRange(&virtualAddressSegment);
+    
+    for(uint64_t i = 0; i < virtualAddressSegment.length; i += 1)
+    {
+        reinterpret_cast<uint8_t*>(virtualAddressSegment.address)[i] = i % 0xFF;
+    }
+    
+    IODMACommand* dmaCommand;
+    IODMACommandSpecification dmaSpecification;
+    
+    bzero(&dmaSpecification, sizeof(dmaSpecification));
+    
+    dmaSpecification.options = kIODMACommandCreateNoOptions;
+    dmaSpecification.maxAddressBits = 64;
+    
+    IODMACommand::Create(ivars->pciDevice, kIODMACommandCreateNoOptions, &dmaSpecification, &dmaCommand);
+    
+    IOAddressSegment physicalAddressSegment[DMA_BUFFER_COUNT];
+    ret = dmaCommand->PrepareForDMA(kIODMACommandPrepareForDMANoOptions,
+                              dmaBuffer,
+                              0,
+                              DMA_BUFFER_SIZE,
+                              &dmaFlags,
+                              &dmaSegmentCount,
+                              physicalAddressSegment);
+    
+    if(ret != kIOReturnSuccess)
+    {
+        Log("failed to prepare dma with error: 0x%08x", ret);
+        Stop(provider);
+        return false;
+    }
+
+    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_MSI_ENABLE_ADDR), (1 << 1) | (1 << 0));
+    
+    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_LOOPBACK_ENABLE_ADDR), 0);
+
+    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_ENABLE_ADDR), 0);
+    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_TABLE_RESET_ADDR), 1);
+    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_TABLE_LOOP_PROG_N_ADDR), 0);
+
+    for (uint32_t i = 0; i < dmaSegmentCount; i++)
+    {
+        ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_TABLE_VALUE_ADDR) + 4,
+                                        DMA_LAST_DISABLE |
+                                        (!(0 % DMA_BUFFER_PER_IRQ == 0)) * DMA_IRQ_DISABLE | /* generate an msi */
+                                        DMA_BUFFER_SIZE);                                    /* every n buffers */
+        ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_TABLE_VALUE_ADDR),
+                                        (physicalAddressSegment[i].address >>  0) & 0xffffffff);
+        ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_TABLE_WE_ADDR),
+                                        (physicalAddressSegment[i].address >>  32) & 0xffffffff);
+    }
+    
+    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_TABLE_LOOP_PROG_N_ADDR), 0);
+    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_ENABLE_ADDR), 1);
+
+    ret = dmaCommand->CompleteDMA(kIODMACommandCreateNoOptions);
+    if(ret != kIOReturnSuccess)
+    {
+        Log("failed to complete dma");
+        Stop(provider);
+        return false;
+    }
+    
+
+    
     // register service so we can be access by client app
     ret = RegisterService();
     if (ret != kIOReturnSuccess) {
@@ -137,6 +280,14 @@ IMPL(litepcie, Start)
 Exit:
     Log("Start() finished");
     return ret;
+}
+
+void
+IMPL(litepcie, InterruptOccurred)
+{
+    Log("InterruptOccurred() entered");
+    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_MSI_CLEAR_ADDR), 3); // clear interrupts 1 and 0
+    Log("InterruptOccurred() finished");
 }
 
 kern_return_t

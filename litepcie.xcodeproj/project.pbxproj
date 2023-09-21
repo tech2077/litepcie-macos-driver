@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		021BC4912AB91D210060350D /* csr.h in Headers */ = {isa = PBXBuildFile; fileRef = 021BC4902AB91D210060350D /* csr.h */; };
+		021BC4942ABBFB1D0060350D /* config.h in Headers */ = {isa = PBXBuildFile; fileRef = 021BC4922ABBFB1D0060350D /* config.h */; };
+		021BC4952ABBFB1D0060350D /* soc.h in Headers */ = {isa = PBXBuildFile; fileRef = 021BC4932ABBFB1D0060350D /* soc.h */; };
 		021DAABA2AAE8D310055D471 /* PCIDriverKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 021DAAB92AAE8D310055D471 /* PCIDriverKit.framework */; };
 		024740902AB6471F00B4757C /* litepcie_userclient.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0247408E2AB6471F00B4757C /* litepcie_userclient.cpp */; };
 		024740912AB6471F00B4757C /* litepcie_userclient.iig in Sources */ = {isa = PBXBuildFile; fileRef = 0247408F2AB6471F00B4757C /* litepcie_userclient.iig */; };
@@ -47,6 +50,9 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		021BC4902AB91D210060350D /* csr.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = csr.h; sourceTree = "<group>"; };
+		021BC4922ABBFB1D0060350D /* config.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = config.h; sourceTree = "<group>"; };
+		021BC4932ABBFB1D0060350D /* soc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = soc.h; sourceTree = "<group>"; };
 		021DAAB92AAE8D310055D471 /* PCIDriverKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = PCIDriverKit.framework; path = System/DriverKit/System/Library/Frameworks/PCIDriverKit.framework; sourceTree = SDKROOT; };
 		0247408E2AB6471F00B4757C /* litepcie_userclient.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = litepcie_userclient.cpp; sourceTree = "<group>"; };
 		0247408F2AB6471F00B4757C /* litepcie_userclient.iig */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.iig; path = litepcie_userclient.iig; sourceTree = "<group>"; };
@@ -132,12 +138,15 @@
 		02A93C612AAD4DF6001E4E3A /* litepcie */ = {
 			isa = PBXGroup;
 			children = (
+				021BC4922ABBFB1D0060350D /* config.h */,
+				021BC4932ABBFB1D0060350D /* soc.h */,
 				02A93C622AAD4DF6001E4E3A /* litepcie.cpp */,
 				02A93C642AAD4DF6001E4E3A /* litepcie.iig */,
 				02A93C662AAD4DF6001E4E3A /* Info.plist */,
 				02D55FD72AAD5A25006843ED /* litepcie.entitlements */,
 				0247408E2AB6471F00B4757C /* litepcie_userclient.cpp */,
 				0247408F2AB6471F00B4757C /* litepcie_userclient.iig */,
+				021BC4902AB91D210060350D /* csr.h */,
 			);
 			path = litepcie;
 			sourceTree = "<group>";
@@ -169,6 +178,9 @@
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				021BC4952ABBFB1D0060350D /* soc.h in Headers */,
+				021BC4942ABBFB1D0060350D /* config.h in Headers */,
+				021BC4912AB91D210060350D /* csr.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
