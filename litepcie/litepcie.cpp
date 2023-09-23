@@ -82,6 +82,8 @@ IMPL(litepcie, Start)
     uint64_t readerAddress = 0, writerAddress = 0;
     
     IOAddressSegment physicalAddressSegment = {0};
+    
+    uint32_t testSize = 8192;
 
     Log("Start() entered");
 
@@ -205,12 +207,12 @@ IMPL(litepcie, Start)
     dmaBuffer->SetLength(bufferCapacity);
     dmaBuffer->GetAddressRange(&virtualAddressSegment);
     
-    for(uint64_t i = 0; i < 8192; i += 1)
+    for(uint64_t i = 0; i < testSize; i += 1)
     {
         reinterpret_cast<uint8_t*>(virtualAddressSegment.address)[i] = i % 0xFF;
     }
     
-    for(uint64_t i = 8192; i < 8192 * 2; i += 1)
+    for(uint64_t i = testSize; i < testSize * 2; i += 1)
     {
         reinterpret_cast<uint8_t*>(virtualAddressSegment.address)[i] = 0xAF;
     }
@@ -253,7 +255,7 @@ IMPL(litepcie, Start)
     }
     
     readerAddress = physicalAddressSegment.address;
-    writerAddress = physicalAddressSegment.address + 8192;
+    writerAddress = physicalAddressSegment.address + testSize;
     
 
     ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_ENABLE_ADDR), 0);
@@ -265,7 +267,7 @@ IMPL(litepcie, Start)
     ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_TABLE_VALUE_ADDR),
                                     DMA_LAST_DISABLE |
 //                                    DMA_IRQ_DISABLE |
-                                    4096);
+                                    testSize);
     ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_TABLE_VALUE_ADDR) + 4,
                                     (readerAddress >>   0) & 0xffffffff);
     ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_TABLE_WE_ADDR),
@@ -281,7 +283,7 @@ IMPL(litepcie, Start)
     ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_WRITER_TABLE_VALUE_ADDR),
                                     DMA_LAST_DISABLE |
 //                                    DMA_IRQ_DISABLE |
-                                    4096);
+                                    testSize);
     ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_WRITER_TABLE_VALUE_ADDR) + 4,
                                     (writerAddress >>   0) & 0xffffffff);
     ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_WRITER_TABLE_WE_ADDR),
@@ -317,11 +319,11 @@ IMPL(litepcie, Start)
     for(uint64_t i = 0; i < 5; i += 1)
     {
         Log("Read buffer    idx: %lli val: 0x%x", i, reinterpret_cast<uint8_t*>(virtualAddressSegment.address)[i]);
-        Log("Written buffer idx: %lli val: 0x%x", i, reinterpret_cast<uint8_t*>(virtualAddressSegment.address)[8192 + i]);
+        Log("Written buffer idx: %lli val: 0x%x", i, reinterpret_cast<uint8_t*>(virtualAddressSegment.address)[testSize + i]);
     }
     
     Log("loopback success: %i",
-        memcmp(reinterpret_cast<void*>(virtualAddressSegment.address), reinterpret_cast<void*>(virtualAddressSegment.address + 8192), 4096));
+        memcmp(reinterpret_cast<void*>(virtualAddressSegment.address), reinterpret_cast<void*>(virtualAddressSegment.address + testSize), testSize));
     
     ret = dmaCommand->CompleteDMA(kIODMACommandCompleteDMANoOptions);
     if(ret != kIOReturnSuccess)
