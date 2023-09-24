@@ -32,6 +32,16 @@ public:
     /* Other methods */
     kern_return_t WriteMemory(uint64_t offset, uint32_t value) LOCALONLY;
     kern_return_t ReadMemory(uint64_t offset, uint32_t* dest) LOCALONLY;
+    
+    kern_return_t InitDMAChannel(int chan_idx) LOCALONLY;
+    kern_return_t SetupDMAReaderChannel(int chan_idx) LOCALONLY;
+    kern_return_t SetupDMAWriterChannel(int chan_idx) LOCALONLY;
+    kern_return_t StartDMAReaderChannel(int chan_idx, bool loop) LOCALONLY;
+    kern_return_t StartDMAWriterChannel(int chan_idx, bool loop) LOCALONLY;
+    kern_return_t StopDMAReaderChannel(int chan_idx) LOCALONLY;
+    kern_return_t StopDMAWriterChannel(int chan_idx) LOCALONLY;
+    kern_return_t StopDMAChannel(int chan_idx) LOCALONLY;
+    void CleanupDMAChannel(int chan_idx) LOCALONLY;
 };
 
 #endif /* litepcie_h */

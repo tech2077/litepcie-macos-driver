@@ -5,6 +5,8 @@
 //  Created by skolaut on 9/9/23.
 //
 
+#include <time.h>
+
 #include <os/log.h>
 
 #include <DriverKit/IOLib.h>
@@ -14,7 +16,6 @@
 #include <DriverKit/IOUserServer.h>
 #include <DriverKit/OSData.h>
 #include <DriverKit/DriverKit.h>
-
 
 #include <PCIDriverKit/PCIDriverKit.h>
 
@@ -26,15 +27,340 @@
 
 #define CSR_TO_OFFSET(addr) ((addr) - CSR_BASE)
 
-struct litepcie_IVars {
-    IOPCIDevice* pciDevice;
-    IODispatchQueue* dispatchQueue = nullptr;
-    IOInterruptDispatchSource* interruptSource;
-    uint64_t hwReaderCount = 0;
-    uint64_t hwWriterCount = 0;
+struct DMADescriptor {
+    union {
+        struct {
+            uint32_t length: 24;     // bits 0..23
+            uint8_t disableIRQ: 1;   // bits 24
+            uint8_t last: 1;         // bits 25
+            uint8_t : 6;             // bits 26..31
+        } reg __attribute__((packed));
+        uint32_t raw;
+    } config;
+    uint32_t lsb;            // bits 32..63
+};
+
+union DMALoopStatus {
+    struct {
+        uint16_t count;
+        uint16_t index;
+    } reg __attribute__((packed));
+    uint32_t raw;
+};
+
+struct DMAChannel {
+    uint64_t baseAddress;
+    
+    uint64_t hwReaderCountTotal = 0;
+    uint64_t hwReaderCountPrev = 0;
+    uint64_t hwWriterCountTotal = 0;
+    uint64_t hwWriterCountPrev = 0;
     uint64_t swReaderCount = 0;
     uint64_t swWriterCount = 0;
+    
+    uint32_t readerInterrupt;
+    uint32_t writerInterrupt;
+    
+    IODMACommand** dmaReaderCommands;
+    IOBufferMemoryDescriptor** dmaReaderBuffers;
+    IOAddressSegment** dmaReaderVirtualSegments;
+    IOAddressSegment** dmaReaderPhysicalSegments;
+    
+    IODMACommand** dmaWriterCommands;
+    IOBufferMemoryDescriptor** dmaWriterBuffers;
+    IOAddressSegment** dmaWriterVirtualSegments;
+    IOAddressSegment** dmaWriterPhysicalSegments;
 };
+
+struct litepcie_IVars {
+    IOPCIDevice* pciDevice;
+    IODispatchQueue* defaultDispatchQueue = nullptr;
+    IODispatchQueue* interruptDispatchQueue = nullptr;
+    IOInterruptDispatchSource* interruptSource;
+    DMAChannel* channel[DMA_CHANNEL_COUNT];
+    uint64_t interruptCount = 0;
+    uint64_t interruptTimePrevBM = 0;
+    uint64_t readerPrevBM = 0;
+    uint64_t writerPrevBM = 0;
+};
+
+kern_return_t litepcie::InitDMAChannel(int chan_idx)
+{
+    Log("InitDMAChannel() entered");
+    
+    kern_return_t ret = kIOReturnSuccess;
+    uint64_t dmaFlags = kIOMemoryDirectionInOut;
+    uint32_t dmaSegmentCount = 1;
+    
+    IODMACommandSpecification dmaSpecification;
+
+    bzero(&dmaSpecification, sizeof(dmaSpecification));
+
+    dmaSpecification.options = kIODMACommandCreateNoOptions;
+    dmaSpecification.maxAddressBits = 64;
+    
+    
+    ivars->channel[chan_idx]->dmaReaderVirtualSegments = IONew(IOAddressSegment*, DMA_BUFFER_COUNT);
+    ivars->channel[chan_idx]->dmaReaderPhysicalSegments = IONew(IOAddressSegment*, DMA_BUFFER_COUNT);
+    ivars->channel[chan_idx]->dmaReaderCommands = IONew(IODMACommand*, DMA_BUFFER_COUNT);
+    ivars->channel[chan_idx]->dmaReaderBuffers = IONew(IOBufferMemoryDescriptor*, DMA_BUFFER_COUNT);
+    
+    ivars->channel[chan_idx]->dmaWriterVirtualSegments = IONew(IOAddressSegment*, DMA_BUFFER_COUNT);
+    ivars->channel[chan_idx]->dmaWriterPhysicalSegments = IONew(IOAddressSegment*, DMA_BUFFER_COUNT);
+    ivars->channel[chan_idx]->dmaWriterCommands = IONew(IODMACommand*, DMA_BUFFER_COUNT);
+    ivars->channel[chan_idx]->dmaWriterBuffers = IONew(IOBufferMemoryDescriptor*, DMA_BUFFER_COUNT);
+    
+    
+    for (int i = 0; i < DMA_BUFFER_COUNT; i += 1)
+    {
+        ivars->channel[chan_idx]->dmaReaderVirtualSegments[i] = new IOAddressSegment;
+        ivars->channel[chan_idx]->dmaReaderPhysicalSegments[i] = new IOAddressSegment;
+        
+        ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, DMA_BUFFER_SIZE, 0, &ivars->channel[chan_idx]->dmaReaderBuffers[i]);
+        if(ret != kIOReturnSuccess)
+        {
+            Log("failed to create dma buffer");
+            return ret;
+        }
+        
+        ivars->channel[chan_idx]->dmaReaderBuffers[i]->SetLength(DMA_BUFFER_SIZE);
+        ivars->channel[chan_idx]->dmaReaderBuffers[i]->GetAddressRange(ivars->channel[chan_idx]->dmaReaderVirtualSegments[i]);
+        
+        
+        IODMACommand::Create(ivars->pciDevice, kIODMACommandCreateNoOptions, &dmaSpecification, &ivars->channel[chan_idx]->dmaReaderCommands[i]);
+
+        dmaSegmentCount = 1;
+        dmaFlags = kIOMemoryDirectionInOut;
+        
+        ret = ivars->channel[chan_idx]->dmaReaderCommands[i]->PrepareForDMA(kIODMACommandPrepareForDMANoOptions,
+                                                                      ivars->channel[chan_idx]->dmaReaderBuffers[i],
+                                  0,
+                                  0,
+                                  &dmaFlags,
+                                  &dmaSegmentCount,
+                                  ivars->channel[chan_idx]->dmaReaderPhysicalSegments[i]);
+        
+        if(ret != kIOReturnSuccess)
+        {
+            Log("failed to prepare dma with error: 0x%08x", ret);
+            return ret;
+        }
+    }
+    
+    for (int i = 0; i < DMA_BUFFER_COUNT; i += 1)
+    {
+        ivars->channel[chan_idx]->dmaWriterVirtualSegments[i] = new IOAddressSegment;
+        ivars->channel[chan_idx]->dmaWriterPhysicalSegments[i] = new IOAddressSegment;
+        
+        
+        ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, DMA_BUFFER_SIZE, 0, &ivars->channel[chan_idx]->dmaWriterBuffers[i]);
+        if(ret != kIOReturnSuccess)
+        {
+            Log("failed to create dma buffer");
+            return ret;
+        }
+        
+        ivars->channel[chan_idx]->dmaWriterBuffers[i]->SetLength(DMA_BUFFER_SIZE);
+        ivars->channel[chan_idx]->dmaWriterBuffers[i]->GetAddressRange(ivars->channel[chan_idx]->dmaWriterVirtualSegments[i]);
+        
+        
+        IODMACommand::Create(ivars->pciDevice, kIODMACommandCreateNoOptions, &dmaSpecification, &ivars->channel[chan_idx]->dmaWriterCommands[i]);
+
+        dmaSegmentCount = 1;
+        dmaFlags = kIOMemoryDirectionInOut;
+        
+        ret = ivars->channel[chan_idx]->dmaWriterCommands[i]->PrepareForDMA(kIODMACommandPrepareForDMANoOptions,
+                                                                      ivars->channel[chan_idx]->dmaWriterBuffers[i],
+                                  0,
+                                  0,
+                                  &dmaFlags,
+                                  &dmaSegmentCount,
+                                  ivars->channel[chan_idx]->dmaWriterPhysicalSegments[i]);
+        
+        if(ret != kIOReturnSuccess)
+        {
+            Log("failed to prepare dma with error: 0x%08x", ret);
+            return ret;
+        }
+    }
+    
+    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_MSI_ENABLE_ADDR), (1 << ivars->channel[chan_idx]->readerInterrupt) | (1 << ivars->channel[chan_idx]->writerInterrupt));
+    
+    return ret;
+}
+
+kern_return_t litepcie::SetupDMAReaderChannel(int chan_idx)
+{
+    Log("SetupDMAReaderChannel() entered");
+    kern_return_t ret = kIOReturnSuccess;
+    
+    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_ENABLE_ADDR), 0);
+    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_TABLE_RESET_ADDR), 1);
+    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_TABLE_LOOP_PROG_N_ADDR), 0);
+    
+    for (int i = 0; i < DMA_BUFFER_COUNT; i += 1)
+    {
+        DMADescriptor desc;
+        uint64_t readerAddress = ivars->channel[chan_idx]->dmaReaderPhysicalSegments[i]->address;
+        uint32_t lsb = (readerAddress >> 0)  & 0xFFFF'FFFF;
+        uint32_t msb = (readerAddress >> 32) & 0xFFFF'FFFF;
+        desc.lsb = lsb;
+        desc.config.reg.last = 1;
+        desc.config.reg.length = DMA_BUFFER_SIZE;
+        desc.config.reg.disableIRQ = (((i + 1) % DMA_BUFFER_PER_IRQ) == 0) ? 0 : 1; // set bit on when buffer idx of increments of DMA_BUFFER_PER_IRQ
+        
+        ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_TABLE_VALUE_ADDR), desc.config.raw);
+        ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_TABLE_VALUE_ADDR) + 4, lsb);
+        ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_TABLE_WE_ADDR), msb);
+    }
+    
+    return ret;
+}
+
+kern_return_t litepcie::SetupDMAWriterChannel(int chan_idx)
+{
+    Log("SetupDMAWriterChannel() entered");
+    kern_return_t ret = kIOReturnSuccess;
+    
+    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_WRITER_ENABLE_ADDR), 0);
+    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_WRITER_TABLE_RESET_ADDR), 1);
+    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_WRITER_TABLE_LOOP_PROG_N_ADDR), 0);
+    
+    for (int i = 0; i < DMA_BUFFER_COUNT; i += 1)
+    {
+        DMADescriptor desc;
+        uint64_t readerAddress = ivars->channel[chan_idx]->dmaWriterPhysicalSegments[i]->address;
+        uint32_t lsb = (readerAddress >> 0)  & 0xFFFF'FFFF;
+        uint32_t msb = (readerAddress >> 32) & 0xFFFF'FFFF;
+        desc.lsb = lsb;
+        desc.config.reg.last = 1;
+        desc.config.reg.length = DMA_BUFFER_SIZE;
+        desc.config.reg.disableIRQ = (((i + 1) % DMA_BUFFER_PER_IRQ) == 0) ? 0 : 1; // set bit on when buffer idx of increments of DMA_BUFFER_PER_IRQ
+        
+        ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_WRITER_TABLE_VALUE_ADDR), desc.config.raw);
+        ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_WRITER_TABLE_VALUE_ADDR) + 4, lsb);
+        ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_WRITER_TABLE_WE_ADDR), msb);
+    }
+    
+    return ret;
+}
+
+kern_return_t litepcie::StartDMAReaderChannel(int chan_idx, bool loop)
+{
+    Log("StartDMAReaderChannel() entered");
+    kern_return_t ret = kIOReturnSuccess;
+    
+    ivars->channel[chan_idx]->hwReaderCountTotal = 0;
+    ivars->channel[chan_idx]->hwReaderCountPrev = 0;
+    
+    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_TABLE_LOOP_PROG_N_ADDR), loop ? 1 : 0);
+    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_ENABLE_ADDR), 1);
+    
+    return ret;
+}
+
+kern_return_t litepcie::StartDMAWriterChannel(int chan_idx, bool loop)
+{
+    Log("StartDMAWriterChannel() entered");
+    kern_return_t ret = kIOReturnSuccess;
+    
+    ivars->channel[chan_idx]->hwWriterCountTotal = 0;
+    ivars->channel[chan_idx]->hwWriterCountPrev = 0;
+    
+    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_WRITER_TABLE_LOOP_PROG_N_ADDR), loop ? 1 : 0);
+    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_WRITER_ENABLE_ADDR), 1);
+    
+    return ret;
+}
+
+kern_return_t litepcie::StopDMAReaderChannel(int chan_idx)
+{
+    Log("StopDMAReaderChannel() entered");
+    kern_return_t ret = kIOReturnSuccess;
+    
+    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_TABLE_LOOP_PROG_N_ADDR), 0);
+    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(PCIE_DMA_READER_TABLE_FLUSH_OFFSET), 1);
+    
+    IOSleep(1);
+    
+    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_ENABLE_ADDR), 0);
+    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(PCIE_DMA_READER_TABLE_FLUSH_OFFSET), 1);
+    
+    Log("StopDMAReaderChannel() finished");
+    return ret;
+}
+
+kern_return_t litepcie::StopDMAWriterChannel(int chan_idx)
+{
+    Log("StopDMAWriterChannel() entered");
+    kern_return_t ret = kIOReturnSuccess;
+    
+    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_WRITER_TABLE_LOOP_PROG_N_ADDR), 0);
+    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(PCIE_DMA_WRITER_TABLE_FLUSH_OFFSET), 1);
+    
+    IOSleep(1);
+    
+    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_WRITER_ENABLE_ADDR), 0);
+    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(PCIE_DMA_WRITER_TABLE_FLUSH_OFFSET), 1);
+    
+    Log("StopDMAWriterChannel() finished");
+    return ret;
+}
+
+kern_return_t litepcie::StopDMAChannel(int chan_idx)
+{
+    Log("StopDMAChannel() entered");
+    kern_return_t ret = kIOReturnSuccess;
+    
+    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_ENABLE_ADDR), 0);
+    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_WRITER_ENABLE_ADDR), 0);
+    
+    Log("StopDMAChannel() finished");
+    return ret;
+}
+
+void litepcie::CleanupDMAChannel(int chan_idx)
+{
+    Log("CleanupDMAChannel() entered");
+    StopDMAChannel(chan_idx);
+//    StopDMAReaderChannel(chan_idx);
+//    StopDMAWriterChannel(chan_idx);
+    
+    
+    Log("CleanupDMAChannel() deleting misc descriptor objects");
+    for (int i = 0; i < DMA_BUFFER_COUNT; i += 1)
+    {
+        ivars->channel[chan_idx]->dmaWriterCommands[i]->CompleteDMA(kIODMACommandCompleteDMANoOptions);
+        ivars->channel[chan_idx]->dmaReaderCommands[i]->CompleteDMA(kIODMACommandCompleteDMANoOptions);
+        
+        delete ivars->channel[chan_idx]->dmaWriterVirtualSegments[i];
+        delete ivars->channel[chan_idx]->dmaWriterPhysicalSegments[i];
+        delete ivars->channel[chan_idx]->dmaReaderVirtualSegments[i];
+        delete ivars->channel[chan_idx]->dmaReaderPhysicalSegments[i];
+        
+        OSSafeReleaseNULL(ivars->channel[chan_idx]->dmaWriterCommands[i]);
+        OSSafeReleaseNULL(ivars->channel[chan_idx]->dmaReaderCommands[i]);
+        
+        OSSafeReleaseNULL(ivars->channel[chan_idx]->dmaWriterBuffers[i]);
+        OSSafeReleaseNULL(ivars->channel[chan_idx]->dmaReaderBuffers[i]);
+    }
+    
+    
+    Log("CleanupDMAChannel() deleting misc descriptor arrays");
+    IODelete(ivars->channel[chan_idx]->dmaWriterCommands, IODMACommand*, DMA_BUFFER_COUNT);
+    IODelete(ivars->channel[chan_idx]->dmaWriterBuffers, IOBufferMemoryDescriptor*, DMA_BUFFER_COUNT);
+    IODelete(ivars->channel[chan_idx]->dmaWriterVirtualSegments, IOAddressSegment*, DMA_BUFFER_COUNT);
+    IODelete(ivars->channel[chan_idx]->dmaWriterPhysicalSegments, IOAddressSegment*, DMA_BUFFER_COUNT);
+    
+    IODelete(ivars->channel[chan_idx]->dmaReaderCommands, IODMACommand*, DMA_BUFFER_COUNT);
+    IODelete(ivars->channel[chan_idx]->dmaReaderBuffers, IOBufferMemoryDescriptor*, DMA_BUFFER_COUNT);
+    IODelete(ivars->channel[chan_idx]->dmaReaderVirtualSegments, IOAddressSegment*, DMA_BUFFER_COUNT);
+    IODelete(ivars->channel[chan_idx]->dmaReaderPhysicalSegments, IOAddressSegment*, DMA_BUFFER_COUNT);
+    
+    IOSleep(100);
+    
+    Log("CleanupDMAChannel() finished");
+}
 
 bool litepcie::init(void)
 {
@@ -154,7 +480,7 @@ IMPL(litepcie, Start)
         msiInterruptIndex += 1;
     }
     
-    ret = CopyDispatchQueue(kIOServiceDefaultQueueName, &(ivars->dispatchQueue));
+    ret = CopyDispatchQueue(kIOServiceDefaultQueueName, &(ivars->defaultDispatchQueue));
     if(ret != kIOReturnSuccess)
     {
         Log("failed to copy queue with error: 0x%08x", ret);
@@ -162,7 +488,15 @@ IMPL(litepcie, Start)
         goto Exit;
     }
     
-    ret = IOInterruptDispatchSource::Create(ivars->pciDevice, msiInterruptIndex, ivars->dispatchQueue, &(ivars->interruptSource));
+    ret = IODispatchQueue::Create("interruptDispatchQueue", 0, 0, &ivars->interruptDispatchQueue);
+    if(ret != kIOReturnSuccess)
+    {
+        Log("failed to create queue with error: 0x%08x", ret);
+        Stop(provider);
+        goto Exit;
+    }
+    
+    ret = IOInterruptDispatchSource::Create(ivars->pciDevice, msiInterruptIndex, ivars->interruptDispatchQueue, &(ivars->interruptSource));
     if(ret != kIOReturnSuccess)
     {
         Log("failed to create interrupt dispatch source");
@@ -194,144 +528,21 @@ IMPL(litepcie, Start)
         return false;
     }
     
-    IOAddressSegment virtualAddressSegment;
-    IOBufferMemoryDescriptor* dmaBuffer;
-    ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, bufferCapacity, bufferAlignment, &dmaBuffer);
-    if(ret != kIOReturnSuccess)
-    {
-        Log("failed to create dma buffer");
-        Stop(provider);
-        return false;
-    }
-    
-    dmaBuffer->SetLength(bufferCapacity);
-    dmaBuffer->GetAddressRange(&virtualAddressSegment);
-    
-    for(uint64_t i = 0; i < testSize; i += 1)
-    {
-        reinterpret_cast<uint8_t*>(virtualAddressSegment.address)[i] = i % 0xFF;
-    }
-    
-    for(uint64_t i = testSize; i < testSize * 2; i += 1)
-    {
-        reinterpret_cast<uint8_t*>(virtualAddressSegment.address)[i] = 0xAF;
-    }
-    
-    
-    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_MSI_ENABLE_ADDR), (1 << 1) | (1 << 0));
+    IOSleep(10);
     
     ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_LOOPBACK_ENABLE_ADDR), 1);
     
+    ivars->channel[0] = new DMAChannel;
+    ivars->channel[0]->baseAddress = CSR_PCIE_DMA0_BASE;
+    ivars->channel[0]->writerInterrupt = PCIE_DMA0_WRITER_INTERRUPT;
+    ivars->channel[0]->readerInterrupt = PCIE_DMA0_READER_INTERRUPT;
+    InitDMAChannel(0);
     
+    SetupDMAWriterChannel(0);
+    SetupDMAReaderChannel(0);
     
-    
-    
-    IODMACommand* dmaCommand;
-    IODMACommandSpecification dmaSpecification;
-
-    bzero(&dmaSpecification, sizeof(dmaSpecification));
-
-    dmaSpecification.options = kIODMACommandCreateNoOptions;
-    dmaSpecification.maxAddressBits = 32;
-    
-    IODMACommand::Create(ivars->pciDevice, kIODMACommandCreateNoOptions, &dmaSpecification, &dmaCommand);
-
-    
-    
-    dmaSegmentCount = 1;
-    ret = dmaCommand->PrepareForDMA(kIODMACommandPrepareForDMANoOptions,
-                              dmaBuffer,
-                              0,
-                              0,
-                              &dmaFlags,
-                              &dmaSegmentCount,
-                              &physicalAddressSegment);
-    
-    if(ret != kIOReturnSuccess)
-    {
-        Log("failed to prepare dma with error: 0x%08x", ret);
-        Stop(provider);
-        return false;
-    }
-    
-    readerAddress = physicalAddressSegment.address;
-    writerAddress = physicalAddressSegment.address + testSize;
-    
-
-    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_ENABLE_ADDR), 0);
-    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_TABLE_RESET_ADDR), 1);
-    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_TABLE_LOOP_PROG_N_ADDR), 0);
-    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_TABLE_RESET_ADDR), 1);
-
-
-    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_TABLE_VALUE_ADDR),
-                                    DMA_LAST_DISABLE |
-//                                    DMA_IRQ_DISABLE |
-                                    testSize);
-    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_TABLE_VALUE_ADDR) + 4,
-                                    (readerAddress >>   0) & 0xffffffff);
-    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_TABLE_WE_ADDR),
-                                    (readerAddress >>  32) & 0xffffffff);
-
-
-    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_WRITER_ENABLE_ADDR), 0);
-    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_WRITER_TABLE_RESET_ADDR), 1);
-    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_WRITER_TABLE_LOOP_PROG_N_ADDR), 0);
-    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_WRITER_TABLE_RESET_ADDR), 1);
-
-    
-    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_WRITER_TABLE_VALUE_ADDR),
-                                    DMA_LAST_DISABLE |
-//                                    DMA_IRQ_DISABLE |
-                                    testSize);
-    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_WRITER_TABLE_VALUE_ADDR) + 4,
-                                    (writerAddress >>   0) & 0xffffffff);
-    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_WRITER_TABLE_WE_ADDR),
-                                    (writerAddress >>  32) & 0xffffffff);
-
-    
-    Log("reader address: %llx", readerAddress);
-    Log("writer address: %llx", writerAddress);
-
-    
-    
-    ivars->pciDevice->MemoryRead32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_TABLE_LEVEL_ADDR), &rlevel);
-    ivars->pciDevice->MemoryRead32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_WRITER_TABLE_LEVEL_ADDR), &wlevel);
-    Log("descriptor levels: %x %x", rlevel, wlevel);
-    
-    ivars->pciDevice->MemoryRead32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_BUFFERING_READER_FIFO_CONTROL_ADDR), &rlevel);
-    ivars->pciDevice->MemoryRead32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_BUFFERING_WRITER_FIFO_CONTROL_ADDR), &wlevel);
-    Log("fifo control: %x %x", rlevel, wlevel);
-    
-    ivars->pciDevice->MemoryRead32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_BUFFERING_READER_FIFO_STATUS_ADDR), &rlevel);
-    ivars->pciDevice->MemoryRead32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_BUFFERING_WRITER_FIFO_STATUS_ADDR), &wlevel);
-    Log("fifo status: %x %x", rlevel, wlevel);
-    
-    
-    
-    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_WRITER_TABLE_LOOP_PROG_N_ADDR), 0);
-    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_WRITER_ENABLE_ADDR), 1);
-    IOSleep(100);
-    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_TABLE_LOOP_PROG_N_ADDR), 0);
-    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_ENABLE_ADDR), 1);
-    IOSleep(100);
-    
-    for(uint64_t i = 0; i < 5; i += 1)
-    {
-        Log("Read buffer    idx: %lli val: 0x%x", i, reinterpret_cast<uint8_t*>(virtualAddressSegment.address)[i]);
-        Log("Written buffer idx: %lli val: 0x%x", i, reinterpret_cast<uint8_t*>(virtualAddressSegment.address)[testSize + i]);
-    }
-    
-    Log("loopback success: %i",
-        memcmp(reinterpret_cast<void*>(virtualAddressSegment.address), reinterpret_cast<void*>(virtualAddressSegment.address + testSize), testSize));
-    
-    ret = dmaCommand->CompleteDMA(kIODMACommandCompleteDMANoOptions);
-    if(ret != kIOReturnSuccess)
-    {
-        Log("failed to complete dma");
-        Stop(provider);
-        return false;
-    }
+    StartDMAWriterChannel(0, true);
+    StartDMAReaderChannel(0, true);
     
     // register service so we can be access by client app
     ret = RegisterService();
@@ -348,35 +559,86 @@ Exit:
 void
 IMPL(litepcie, InterruptOccurred)
 {
-    Log("InterruptOccurred() entered");
-    uint32_t rval = 0, wval = 0;
+    bool printLog = (ivars->interruptCount % 4096) == 0;
     
-    ivars->pciDevice->MemoryRead32(0, CSR_TO_OFFSET(CSR_PCIE_MSI_VECTOR_ADDR), &rval);
-    Log("InterruptOccurred() vector: %x", rval);
     
-    ivars->hwReaderCount +=  (rval & 0x1) ? 1 : 0;
-    ivars->hwWriterCount +=  (rval & 0x2) ? 1 : 0;
+    if (printLog)
+        Log("InterruptOccurred() entered");
+    uint32_t vector = 0, clear = 0;
     
-    ivars->pciDevice->MemoryRead32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_TABLE_LOOP_STATUS_ADDR), &rval);
-    ivars->pciDevice->MemoryRead32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_WRITER_TABLE_LOOP_STATUS_ADDR), &wval);
-    Log("InterruptOccurred() status: %x %x", rval, wval);
+    DMALoopStatus rstatus, wstatus;
     
-    uint32_t rlevel = 0, wlevel = 0;
-    ivars->pciDevice->MemoryRead32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_TABLE_LEVEL_ADDR), &rlevel);
-    ivars->pciDevice->MemoryRead32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_WRITER_TABLE_LEVEL_ADDR), &wlevel);
-    Log("InterruptOccurred() level: %x %x", rlevel, wlevel);
+    ivars->pciDevice->MemoryRead32(0, CSR_TO_OFFSET(CSR_PCIE_MSI_VECTOR_ADDR), &vector);
+    if (printLog)
+        Log("InterruptOccurred() vector: %x", vector);
     
-    ivars->pciDevice->MemoryRead32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_BUFFERING_READER_FIFO_CONTROL_ADDR), &rlevel);
-    ivars->pciDevice->MemoryRead32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_BUFFERING_WRITER_FIFO_CONTROL_ADDR), &wlevel);
-    Log("InterruptOccurred() fifo control: %x %x", rlevel, wlevel);
+    for (int i = 0; i < DMA_CHANNEL_COUNT; i += 1)
+    {
+        uint64_t current_time_ns = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+        
+        if (vector & (1 << ivars->channel[i]->readerInterrupt))
+        {
+            clear |= (1 << ivars->channel[i]->readerInterrupt);
+            ivars->pciDevice->MemoryRead32(0, CSR_TO_OFFSET(ivars->channel[i]->baseAddress) + PCIE_DMA_READER_TABLE_LOOP_STATUS_OFFSET, &rstatus.raw);
+            uint64_t count = rstatus.reg.index * DMA_BUFFER_COUNT + rstatus.reg.index;
+            
+            
+            if(ivars->channel[i]->hwReaderCountPrev > count)
+            {
+                ivars->channel[i]->hwReaderCountTotal += (DMA_BUFFER_COUNT * (0xFFFF + 1) - ivars->channel[i]->hwReaderCountPrev) + count; // status wraparound
+            } else
+            {
+                ivars->channel[i]->hwReaderCountTotal += (count - ivars->channel[i]->hwReaderCountPrev);
+            }
+            
+            ivars->channel[i]->hwReaderCountPrev = count;
+        }
+        
+        if (vector & (1 << ivars->channel[i]->writerInterrupt))
+        {
+            clear |= (1 << ivars->channel[i]->writerInterrupt);
+            ivars->pciDevice->MemoryRead32(0, CSR_TO_OFFSET(ivars->channel[i]->baseAddress) + PCIE_DMA_WRITER_TABLE_LOOP_STATUS_OFFSET, &wstatus.raw);
+            uint64_t count = wstatus.reg.index * DMA_BUFFER_COUNT + wstatus.reg.index;
+            
+            
+            if(ivars->channel[i]->hwWriterCountPrev > count)
+            {
+                ivars->channel[i]->hwWriterCountTotal += (DMA_BUFFER_COUNT * (0xFFFF + 1) - ivars->channel[i]->hwWriterCountPrev) + count; // status wraparound
+            } else
+            {
+                ivars->channel[i]->hwWriterCountTotal += (count - ivars->channel[i]->hwWriterCountPrev);
+            }
+            
+            ivars->channel[i]->hwWriterCountPrev = count;
+        }
+        
+        if (printLog)
+        {
+            Log("InterruptOccurred() chan %i hwcounts rd: %lli wr: %lli", i, ivars->channel[i]->hwReaderCountTotal, ivars->channel[i]->hwWriterCountTotal);
+            
+            uint64_t delta_ns = (current_time_ns - ivars->interruptTimePrevBM);
+            double delta_s = delta_ns / 1'000'000'000.0;
+            double readerRate = (DMA_BUFFER_SIZE * (ivars->channel[i]->hwReaderCountTotal - ivars->readerPrevBM)) / delta_s;
+            double writerRate = (DMA_BUFFER_SIZE * (ivars->channel[i]->hwWriterCountTotal - ivars->writerPrevBM)) / delta_s;
+            
+            Log("InterruptOccurred() reader MB/s: %0.3f", readerRate / 1'000'000.0);
+            Log("InterruptOccurred() writer MB/s: %0.3f", writerRate / 1'000'000.0);
+            Log("InterruptOccurred()  total MB/s: %0.3f", (readerRate + writerRate) / 1'000'000.0);
+            
+            ivars->interruptTimePrevBM = current_time_ns;
+            ivars->readerPrevBM = ivars->channel[i]->hwReaderCountTotal;
+            ivars->writerPrevBM = ivars->channel[i]->hwWriterCountTotal;
+        }
+    }
     
-    ivars->pciDevice->MemoryRead32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_BUFFERING_READER_FIFO_STATUS_ADDR), &rlevel);
-    ivars->pciDevice->MemoryRead32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_BUFFERING_WRITER_FIFO_STATUS_ADDR), &wlevel);
-    Log("InterruptOccurred() fifo status: %x %x", rlevel, wlevel);
+    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_MSI_CLEAR_ADDR), clear); // clear interrupts
     
-    ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_MSI_CLEAR_ADDR), 3); // clear interrupts 1 and 0
+    if (printLog)
+        Log("InterruptOccurred() count: %lli", ivars->interruptCount);
+    if (printLog)
+        Log("InterruptOccurred() finished");
     
-    Log("InterruptOccurred() finished");
+    ivars->interruptCount += 1;
 }
 
 kern_return_t
@@ -386,7 +648,9 @@ IMPL(litepcie, Stop)
     __block _Atomic uint32_t cancelCount = 0;
 
     Log("Stop() entered");
-
+    
+    CleanupDMAChannel(0);
+    
     // closes the pci device
     // this also handles clearing bus master enable and
     // memory space enable command bits
@@ -394,7 +658,11 @@ IMPL(litepcie, Stop)
         ivars->pciDevice->Close(this, 0);
     }
 
-    if (ivars->dispatchQueue != nullptr) {
+    if (ivars->defaultDispatchQueue != nullptr) {
+        ++cancelCount;
+    }
+    
+    if (ivars->interruptDispatchQueue != nullptr) {
         ++cancelCount;
     }
 
@@ -431,8 +699,12 @@ IMPL(litepcie, Stop)
         }
     };
 
-    if (ivars->dispatchQueue != nullptr) {
-        ivars->dispatchQueue->Cancel(finalize);
+    if (ivars->defaultDispatchQueue != nullptr) {
+        ivars->defaultDispatchQueue->Cancel(finalize);
+    }
+    
+    if (ivars->interruptDispatchQueue != nullptr) {
+        ivars->interruptDispatchQueue->Cancel(finalize);
     }
 
     Log("Stop() finished");
@@ -444,7 +716,7 @@ void litepcie::free(void)
 {
     Log("free() entered");
 
-    OSSafeReleaseNULL(ivars->dispatchQueue);
+    OSSafeReleaseNULL(ivars->defaultDispatchQueue);
     IOSafeDeleteNULL(ivars, litepcie_IVars, 1);
 
     super::free();
