@@ -19,7 +19,16 @@ public:
     virtual kern_return_t Stop(IOService* provider) override;
     virtual void free(void) override;
 
-    virtual kern_return_t ExternalMethod(uint64_t selector, IOUserClientMethodArguments* arguments, const IOUserClientMethodDispatch* dispatch, OSObject* target, void* reference) override;
+    virtual kern_return_t ExternalMethod(
+        uint64_t selector,
+        IOUserClientMethodArguments* arguments,
+        const IOUserClientMethodDispatch* dispatch,
+        OSObject* target,
+        void* reference) override;
+    virtual kern_return_t CopyClientMemoryForType(
+        uint64_t type,
+        uint64_t* options,
+        IOMemoryDescriptor** memory) override;
 
     kern_return_t HandleReadCSR(IOUserClientMethodArguments* arguments) LOCALONLY;
     kern_return_t HandleWriteCSR(IOUserClientMethodArguments* arguments) LOCALONLY;

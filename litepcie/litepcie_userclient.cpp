@@ -16,6 +16,7 @@
 
 #include <PCIDriverKit/PCIDriverKit.h>
 
+#include "config.h"
 #include "litepcie.h"
 #include "litepcie_userclient.h"
 
@@ -212,4 +213,31 @@ kern_return_t litepcie_userclient::HandleWriteCSR(IOUserClientMethodArguments* a
 Exit:
     Log("ExternalMethod() finished");
     return ret;
+}
+
+kern_return_t IMPL(litepcie_userclient, CopyClientMemoryForType) //(uint64_t type, uint64_t *options, IOMemoryDescriptor **memory)
+{
+    kern_return_t res;
+    if (type == 0) {
+
+        IOBufferMemoryDescriptor* buffer = nullptr;
+        res = ivars->litepcie->CreateReaderBufferDescriptor(0, (IOMemoryDescriptor**)&buffer);
+        if (res != kIOReturnSuccess) {
+            os_log(OS_LOG_DEFAULT, "litepcie_userclient::CopyClientMemoryForType(): litepcie::CreateReaderBufferDescriptor failed: 0x%x", res);
+        } else {
+            *memory = buffer; // returned with refcount 1
+        }
+    } else if (type == 1) {
+
+        IOBufferMemoryDescriptor* buffer = nullptr;
+        res = ivars->litepcie->CreateWriterBufferDescriptor(0, (IOMemoryDescriptor**)&buffer);
+        if (res != kIOReturnSuccess) {
+            os_log(OS_LOG_DEFAULT, "litepcie_userclient::CopyClientMemoryForType(): litepcie::CreateWriterBufferDescriptor failed: 0x%x", res);
+        } else {
+            *memory = buffer; // returned with refcount 1
+        }
+    } else {
+        res = this->CopyClientMemoryForType(type, options, memory, SUPERDISPATCH);
+    }
+    return res;
 }

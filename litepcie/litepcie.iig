@@ -13,10 +13,10 @@
 #include <DriverKit/IOUserClient.iig>
 
 #include <DriverKit/DriverKit.iig>
-#include <DriverKit/OSAction.iig>
-#include <DriverKit/IOService.iig>
-#include <DriverKit/IOMemoryDescriptor.iig>
 #include <DriverKit/IODataQueueDispatchSource.iig>
+#include <DriverKit/IOMemoryDescriptor.iig>
+#include <DriverKit/IOService.iig>
+#include <DriverKit/OSAction.iig>
 
 class litepcie : public IOService {
 public:
@@ -26,13 +26,13 @@ public:
     virtual void free(void) override;
 
     virtual kern_return_t NewUserClient(uint32_t type, IOUserClient** userClient) override;
-    
+
     virtual void InterruptOccurred(OSAction* action, uint64_t count, uint64_t time) TYPE(IOInterruptDispatchSource::InterruptOccurred);
 
     /* Other methods */
     kern_return_t WriteMemory(uint64_t offset, uint32_t value) LOCALONLY;
     kern_return_t ReadMemory(uint64_t offset, uint32_t* dest) LOCALONLY;
-    
+
     kern_return_t InitDMAChannel(int chan_idx) LOCALONLY;
     kern_return_t SetupDMAReaderChannel(int chan_idx) LOCALONLY;
     kern_return_t SetupDMAWriterChannel(int chan_idx) LOCALONLY;
@@ -42,6 +42,9 @@ public:
     kern_return_t StopDMAWriterChannel(int chan_idx) LOCALONLY;
     kern_return_t StopDMAChannel(int chan_idx) LOCALONLY;
     void CleanupDMAChannel(int chan_idx) LOCALONLY;
+
+    kern_return_t CreateReaderBufferDescriptor(int chan_idx, IOMemoryDescriptor** buffer) LOCALONLY;
+    kern_return_t CreateWriterBufferDescriptor(int chan_idx, IOMemoryDescriptor** buffer) LOCALONLY;
 };
 
 #endif /* litepcie_h */
