@@ -18,6 +18,8 @@
 #include <DriverKit/IOService.iig>
 #include <DriverKit/OSAction.iig>
 
+#include "litepcie_int.h"
+
 class litepcie : public IOService {
 public:
     virtual bool init(void) override;
@@ -45,6 +47,8 @@ public:
 
     kern_return_t CreateReaderBufferDescriptor(int chan_idx, IOMemoryDescriptor** buffer) LOCALONLY;
     kern_return_t CreateWriterBufferDescriptor(int chan_idx, IOMemoryDescriptor** buffer) LOCALONLY;
+    
+    kern_return_t GetDmaCountDescriptor(int chan_idx, IOMemoryDescriptor** buffer) LOCALONLY;
 };
 
 #endif /* litepcie_h */

@@ -18,25 +18,17 @@
 
 #include "config.h"
 #include "litepcie.h"
+#include "litepcie_int.h"
+#include "litepcie_ext.h"
 #include "litepcie_userclient.h"
 
-#define Log(fmt, ...) os_log(OS_LOG_DEFAULT, "litepcie_userclient - " fmt "\n", ##__VA_ARGS__)
-
-enum LitePCIeMessageType {
-    LITEPCIE_READ_CSR,
-    LITEPCIE_WRITE_CSR,
-};
-
-typedef struct {
-    uint64_t addr;
-    uint32_t value;
-
-} ExternalReadWriteCSRStruct;
+#define Log(fmt, ...) os_log(OS_LOG_DEFAULT, "litepcie_userclient::%s - " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
 
 struct litepcie_userclient_IVars {
     litepcie* litepcie = nullptr;
-    IOBufferMemoryDescriptor** rtest;
-    IOBufferMemoryDescriptor** wtest;
+    IOBufferMemoryDescriptor* rdma;
+    IOBufferMemoryDescriptor* wdma;
+    IOBufferMemoryDescriptor* cdma;
 };
 
 bool litepcie_userclient::init(void)
@@ -45,7 +37,7 @@ bool litepcie_userclient::init(void)
     kern_return_t ret = kIOReturnSuccess;
     uint64_t bufsize = 8192 * 2;
 
-    Log("init() entered");
+    Log("entered");
 
     result = super::init();
     if (result != true) {
@@ -58,36 +50,8 @@ bool litepcie_userclient::init(void)
         Log("failed to allocate memory for ivars");
         goto Exit;
     }
-    
-    
-    ivars->rtest = IONew(IOBufferMemoryDescriptor*, 64);
-    ivars->wtest = IONew(IOBufferMemoryDescriptor*, 64);
-    
-    for (int i = 0; i < 64; i += 1) {
-        IOAddressSegment rseg, wseg;
-        ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, bufsize, 0, &ivars->rtest[i]);
-        if (ret != kIOReturnSuccess) {
-            Log("litepcie_userclient::init failed with error: 0x%08x", ret);
-            goto Exit;
-        }
-        ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, bufsize, 0, &ivars->wtest[i]);
-        if (ret != kIOReturnSuccess) {
-            Log("litepcie_userclient::init failed with error: 0x%08x", ret);
-            goto Exit;
-        }
-        
-        ivars->rtest[i]->SetLength(bufsize);
-        ivars->rtest[i]->GetAddressRange(&rseg);
-        ivars->wtest[i]->SetLength(bufsize);
-        ivars->wtest[i]->GetAddressRange(&wseg);
-        
-        for (int j = 0; j < bufsize; j += 1) {
-            reinterpret_cast<uint8_t*>(rseg.address)[j] = i;
-            reinterpret_cast<uint8_t*>(wseg.address)[j] = i + 32;
-        }
-    }
 
-    Log("init() finished.");
+    Log("finished.");
     return true;
 
 Exit:
@@ -99,7 +63,7 @@ IMPL(litepcie_userclient, Start)
 {
     kern_return_t ret = kIOReturnSuccess;
 
-    Log("Start() entered");
+    Log("entered");
 
     ret = super::Start(provider, SUPERDISPATCH);
     if (ret != kIOReturnSuccess) {
@@ -115,8 +79,26 @@ IMPL(litepcie_userclient, Start)
         goto Exit;
     }
 
+    ret = ivars->litepcie->CreateReaderBufferDescriptor(0, (IOMemoryDescriptor**)&ivars->rdma);
+    if (ret != kIOReturnSuccess) {
+        Log("litepcie::CreateReaderBufferDescriptor failed: 0x%x", ret);
+        goto Exit;
+    }
+
+    ret = ivars->litepcie->CreateWriterBufferDescriptor(0, (IOMemoryDescriptor**)&ivars->wdma);
+    if (ret != kIOReturnSuccess) {
+        Log("litepcie::CreateWriterBufferDescriptor failed: 0x%x", ret);
+        goto Exit;
+    }
+    
+    ret = ivars->litepcie->GetDmaCountDescriptor(0, (IOMemoryDescriptor**)&ivars->cdma);
+    if (ret != kIOReturnSuccess) {
+        Log("litepcie::GetDmaCountDescriptor failed: 0x%x", ret);
+        goto Exit;
+    }
+
 Exit:
-    Log("Start() finished");
+    Log("finished");
     return ret;
 }
 
@@ -125,9 +107,21 @@ IMPL(litepcie_userclient, Stop)
 {
     kern_return_t ret = kIOReturnSuccess;
 
-    Log("Stop() entered");
+    Log("entered");
 
-    Log("Stop() finished");
+    if (ivars->rdma) {
+        ivars->rdma->release();
+    }
+
+    if (ivars->wdma) {
+        ivars->wdma->release();
+    }
+    
+    if (ivars->cdma) {
+        ivars->cdma->release();
+    }
+
+    Log("finished");
 
     return ret;
 }
@@ -135,14 +129,6 @@ IMPL(litepcie_userclient, Stop)
 void litepcie_userclient::free(void)
 {
     Log("free() entered");
-    
-    for (int i = 0; i < 64; i += 1) {
-        OSSafeReleaseNULL(ivars->rtest[i]);
-        OSSafeReleaseNULL(ivars->wtest[i]);
-    }
-    
-    IOSafeDeleteNULL(ivars->rtest, IOBufferMemoryDescriptor*, 64);
-    IOSafeDeleteNULL(ivars->wtest, IOBufferMemoryDescriptor*, 64);
 
     IOSafeDeleteNULL(ivars, litepcie_userclient_IVars, 1);
 
@@ -210,7 +196,7 @@ kern_return_t litepcie_userclient::HandleReadCSR(IOUserClientMethodArguments* ar
     arguments->structureOutput = OSData::withBytes(&output, sizeof(ExternalReadWriteCSRStruct));
 
 Exit:
-    Log("ExternalMethod() finished");
+    Log("finished");
     return ret;
 }
 
@@ -251,57 +237,37 @@ kern_return_t litepcie_userclient::HandleWriteCSR(IOUserClientMethodArguments* a
     arguments->structureOutput = OSData::withBytes(&output, sizeof(ExternalReadWriteCSRStruct));
 
 Exit:
-    Log("ExternalMethod() finished");
+    Log("finished");
     return ret;
 }
 
 kern_return_t IMPL(litepcie_userclient, CopyClientMemoryForType) //(uint64_t type, uint64_t *options, IOMemoryDescriptor **memory)
 {
-    Log("CopyClientMemoryForType() entered");
-    
+    Log("entered");
+
     kern_return_t res = kIOReturnSuccess;
-    
-    if (type == 0) {
-        res = ivars->litepcie->CreateReaderBufferDescriptor(0, memory);
-        if (res != kIOReturnSuccess) {
-            os_log(OS_LOG_DEFAULT, "litepcie_userclient::CopyClientMemoryForType(): litepcie::CreateReaderBufferDescriptor failed: 0x%x", res);
-        } else {
-            Log("rbuffer: 0x%llx", reinterpret_cast<uint64_t>(*memory));
+
+    if (type == LITEPCIE_DMA0_READER) {
+        if (ivars->rdma != nullptr) {
+            ivars->rdma->retain();
+            *memory = (IOMemoryDescriptor*)ivars->rdma;
         }
-    } else if (type == 1) {
-        res = ivars->litepcie->CreateWriterBufferDescriptor(0, memory);
-        if (res != kIOReturnSuccess) {
-            os_log(OS_LOG_DEFAULT, "litepcie_userclient::CopyClientMemoryForType(): litepcie::CreateWriterBufferDescriptor failed: 0x%x", res);
-        } else {
-            Log("wbuffer: 0x%llx", reinterpret_cast<uint64_t>(*memory));
+    } else if (type == LITEPCIE_DMA0_WRITER) {
+        if (ivars->wdma != nullptr) {
+            ivars->wdma->retain();
+            *memory = (IOMemoryDescriptor*)ivars->wdma;
         }
-    } else if (type == 2) {
-        IOMemoryDescriptor* tmp[32];
-        
-        for (int i = 0; i < 64 / 32; i += 1) {
-            IOMemoryDescriptor::CreateWithMemoryDescriptors(kIOMemoryDirectionInOut, 32, (IOMemoryDescriptor**)(&ivars->rtest[i * 32]), (IOMemoryDescriptor**)(&tmp[i]));
+    } else if (type == LITEPCIE_DMA0_COUNTS) {
+        if (ivars->cdma != nullptr) {
+            ivars->cdma->retain();
+            *memory = (IOMemoryDescriptor*)ivars->cdma;
+            *options |= kIOUserClientMemoryReadOnly;
         }
-        
-        res = IOMemoryDescriptor::CreateWithMemoryDescriptors(kIOMemoryDirectionInOut, 64 / 32, (IOMemoryDescriptor**)tmp, memory);
-        if (res != kIOReturnSuccess) {
-            os_log(OS_LOG_DEFAULT, "litepcie_userclient::CopyClientMemoryForType(): IOMemoryDescriptor::CreateWithMemoryDescriptors failed: 0x%x", res);
-        }
-    } else if (type == 3) {
-        IOMemoryDescriptor* tmp[32];
-        
-        for (int i = 0; i < 64 / 32; i += 1) {
-            IOMemoryDescriptor::CreateWithMemoryDescriptors(kIOMemoryDirectionInOut, 32, (IOMemoryDescriptor**)(&ivars->wtest[i * 32]), (IOMemoryDescriptor**)(&tmp[i]));
-        }
-        
-        res = IOMemoryDescriptor::CreateWithMemoryDescriptors(kIOMemoryDirectionInOut, 64 / 32, (IOMemoryDescriptor**)tmp, memory);
-        if (res != kIOReturnSuccess) {
-            os_log(OS_LOG_DEFAULT, "litepcie_userclient::CopyClientMemoryForType(): IOMemoryDescriptor::CreateWithMemoryDescriptors failed: 0x%x", res);
-        }
-    } else {
+    }  else {
         res = this->CopyClientMemoryForType(type, options, memory, SUPERDISPATCH);
     }
-    
-    Log("CopyClientMemoryForType() finished");
-    
+
+    Log("finished");
+
     return res;
 }
