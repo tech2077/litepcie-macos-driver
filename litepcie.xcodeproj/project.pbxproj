@@ -92,7 +92,7 @@
 		02EA5CC42AD223290033662D /* litepcie_flash.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = litepcie_flash.h; sourceTree = "<group>"; };
 		02EA5CC52AD223290033662D /* litepcie_helpers.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = litepcie_helpers.c; sourceTree = "<group>"; };
 		02EA5CD02AD224F20033662D /* litepcie.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = litepcie.h; sourceTree = "<group>"; };
-		02EA5CD72AD225B00033662D /* litepcie_ext.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = litepcie_ext.h; sourceTree = "<group>"; };
+		02EA5CD72AD225B00033662D /* litepcie_ext.h */ = {isa = PBXFileReference; explicitFileType = sourcecode.cpp.h; path = litepcie_ext.h; sourceTree = "<group>"; };
 		02F5BFAF2AAE644400A35930 /* litepcie-client.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "litepcie-client.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		02F5BFC22AAE648B00A35930 /* main.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
 		02F5BFC32AAE648B00A35930 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };

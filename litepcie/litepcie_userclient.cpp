@@ -26,16 +26,14 @@
 
 struct litepcie_userclient_IVars {
     litepcie* litepcie = nullptr;
-    IOBufferMemoryDescriptor* rdma;
-    IOBufferMemoryDescriptor* wdma;
-    IOBufferMemoryDescriptor* cdma;
+    IOBufferMemoryDescriptor* rdma[16] = {nullptr};
+    IOBufferMemoryDescriptor* wdma[16] = {nullptr};
+    IOBufferMemoryDescriptor* cdma[16] = {nullptr};
 };
 
 bool litepcie_userclient::init(void)
 {
     bool result = false;
-    kern_return_t ret = kIOReturnSuccess;
-    uint64_t bufsize = 8192 * 2;
 
     Log("entered");
 
@@ -79,24 +77,6 @@ IMPL(litepcie_userclient, Start)
         goto Exit;
     }
 
-    ret = ivars->litepcie->CreateReaderBufferDescriptor(0, (IOMemoryDescriptor**)&ivars->rdma);
-    if (ret != kIOReturnSuccess) {
-        Log("litepcie::CreateReaderBufferDescriptor failed: 0x%x", ret);
-        goto Exit;
-    }
-
-    ret = ivars->litepcie->CreateWriterBufferDescriptor(0, (IOMemoryDescriptor**)&ivars->wdma);
-    if (ret != kIOReturnSuccess) {
-        Log("litepcie::CreateWriterBufferDescriptor failed: 0x%x", ret);
-        goto Exit;
-    }
-    
-    ret = ivars->litepcie->GetDmaCountDescriptor(0, (IOMemoryDescriptor**)&ivars->cdma);
-    if (ret != kIOReturnSuccess) {
-        Log("litepcie::GetDmaCountDescriptor failed: 0x%x", ret);
-        goto Exit;
-    }
-
 Exit:
     Log("finished");
     return ret;
@@ -108,17 +88,19 @@ IMPL(litepcie_userclient, Stop)
     kern_return_t ret = kIOReturnSuccess;
 
     Log("entered");
-
-    if (ivars->rdma) {
-        ivars->rdma->release();
-    }
-
-    if (ivars->wdma) {
-        ivars->wdma->release();
-    }
     
-    if (ivars->cdma) {
-        ivars->cdma->release();
+    for (int i = 0; i < 16; i += 1) {
+        if (ivars->rdma[i] != nullptr) {
+            ivars->rdma[i]->release();
+        }
+
+        if (ivars->wdma[i] != nullptr) {
+            ivars->wdma[i]->release();
+        }
+        
+        if (ivars->cdma[i] != nullptr) {
+            ivars->cdma[i]->release();
+        }
     }
 
     Log("finished");
@@ -150,6 +132,12 @@ kern_return_t litepcie_userclient::ExternalMethod(uint64_t selector, IOUserClien
     case LITEPCIE_WRITE_CSR: {
         ret = HandleWriteCSR(arguments);
     } break;
+    case LITEPCIE_ICAP: {
+        ret = HandleICAP(arguments);
+    } break;
+    case LITEPCIE_FLASH: {
+        ret = HandleFlash(arguments);
+    } break;
 
     default:
         break;
@@ -160,12 +148,13 @@ Exit:
     return ret;
 }
 
-kern_return_t litepcie_userclient::HandleReadCSR(IOUserClientMethodArguments* arguments)
+kern_return_t litepcie_userclient::HandleFlash(IOUserClientMethodArguments* arguments)
 {
+    Log("entered");
     kern_return_t ret = kIOReturnSuccess;
 
-    ExternalReadWriteCSRStruct* input;
-    ExternalReadWriteCSRStruct output;
+    LitePCIeFlashCallData* input;
+    LitePCIeFlashCallData output;
 
     // bunch of checks to see if out input is valid on multiple levels
     if (arguments == nullptr) {
@@ -175,7 +164,69 @@ kern_return_t litepcie_userclient::HandleReadCSR(IOUserClientMethodArguments* ar
     }
 
     if (arguments->structureInput != nullptr) {
-        input = (ExternalReadWriteCSRStruct*)arguments->structureInput->getBytesNoCopy();
+        input = (LitePCIeFlashCallData*)arguments->structureInput->getBytesNoCopy();
+        output.tx_len = input->tx_len;
+        output.tx_data = input->tx_data;
+        output.rx_data = input->rx_data;
+    } else {
+        Log("structureInput was null");
+        ret = kIOReturnBadArgument;
+        goto Exit;
+    }
+
+    if (input == nullptr) {
+        Log("input struct was null");
+        ret = kIOReturnBadArgument;
+        goto Exit;
+    }
+    
+    if (input->tx_len < 8 || input->tx_len > 40) {
+        Log("tx_len not >= 8 or <= 40");
+        ret = kIOReturnBadArgument;
+        goto Exit;
+    }
+
+    ivars->litepcie->WriteMemory(CSR_TO_OFFSET(CSR_FLASH_SPI_MOSI_ADDR), input->tx_data >> 32);
+    ivars->litepcie->WriteMemory(CSR_TO_OFFSET(CSR_FLASH_SPI_MOSI_ADDR) + 4, (uint32_t)(input->tx_data & 0xFF'FF'FF'FF));
+    ivars->litepcie->WriteMemory(CSR_TO_OFFSET(CSR_FLASH_SPI_CONTROL_ADDR), SPI_CTRL_START | (input->tx_len * SPI_CTRL_LENGTH));
+    IODelay(16);
+    for (int i = 0; i < SPI_TIMEOUT; i += 1) {
+        uint32_t val;
+        ivars->litepcie->ReadMemory(CSR_TO_OFFSET(CSR_FLASH_SPI_MOSI_ADDR), &val);
+        if(val & SPI_STATUS_DONE) {
+            break;
+        }
+        IODelay(1);
+    }
+    uint32_t lsb, msb;
+    ivars->litepcie->ReadMemory(CSR_TO_OFFSET(CSR_FLASH_SPI_MISO_ADDR), &msb);
+    ivars->litepcie->ReadMemory(CSR_TO_OFFSET(CSR_FLASH_SPI_MISO_ADDR) + 4, &lsb);
+    output.rx_data = ((uint64_t)msb << 32) | lsb;
+    
+    // send our output out using osdata
+    arguments->structureOutput = OSData::withBytes(&output, sizeof(LitePCIeFlashCallData));
+
+Exit:
+    Log("finished");
+    return ret;
+}
+
+kern_return_t litepcie_userclient::HandleICAP(IOUserClientMethodArguments* arguments)
+{
+    Log("entered");
+    kern_return_t ret = kIOReturnSuccess;
+
+    LitePCIeICAPCallData* input;
+
+    // bunch of checks to see if out input is valid on multiple levels
+    if (arguments == nullptr) {
+        Log("Arguments were null");
+        ret = kIOReturnBadArgument;
+        goto Exit;
+    }
+
+    if (arguments->structureInput != nullptr) {
+        input = (LitePCIeICAPCallData*)arguments->structureInput->getBytesNoCopy();
     } else {
         Log("structureInput was null");
         ret = kIOReturnBadArgument;
@@ -188,12 +239,41 @@ kern_return_t litepcie_userclient::HandleReadCSR(IOUserClientMethodArguments* ar
         goto Exit;
     }
 
-    // do the thing
-    output.addr = input->addr;
-    ivars->litepcie->ReadMemory(input->addr, &output.value);
+    ivars->litepcie->WriteMemory(CSR_TO_OFFSET(CSR_ICAP_ADDR_ADDR), input->addr);
+    ivars->litepcie->WriteMemory(CSR_TO_OFFSET(CSR_ICAP_DATA_ADDR), input->data);
+    ivars->litepcie->WriteMemory(CSR_TO_OFFSET(CSR_ICAP_WRITE_ADDR), 1);
 
-    // send our output out using osdata
-    arguments->structureOutput = OSData::withBytes(&output, sizeof(ExternalReadWriteCSRStruct));
+Exit:
+    Log("finished");
+    return ret;
+}
+
+kern_return_t litepcie_userclient::HandleReadCSR(IOUserClientMethodArguments* arguments)
+{
+    Log("entered");
+    kern_return_t ret = kIOReturnSuccess;
+    
+    const uint64_t* input;
+    uint64_t output;
+
+    // bunch of checks to see if out input is valid on multiple levels
+    if (arguments == nullptr) {
+        Log("Arguments were null");
+        ret = kIOReturnBadArgument;
+        goto Exit;
+    }
+
+    if (arguments->scalarInput != nullptr && arguments->scalarInputCount == 1) {
+        input = arguments->scalarInput;
+    } else {
+        Log("scalarInput was null");
+        ret = kIOReturnBadArgument;
+        goto Exit;
+    }
+
+    ivars->litepcie->ReadMemory(input[0], (uint32_t*)&output);
+
+    arguments->scalarOutput[0] = output;
 
 Exit:
     Log("finished");
@@ -202,10 +282,10 @@ Exit:
 
 kern_return_t litepcie_userclient::HandleWriteCSR(IOUserClientMethodArguments* arguments)
 {
+    Log("entered");
     kern_return_t ret = kIOReturnSuccess;
-
-    ExternalReadWriteCSRStruct* input;
-    ExternalReadWriteCSRStruct output;
+    
+    const uint64_t* input;
 
     // bunch of checks to see if out input is valid on multiple levels
     if (arguments == nullptr) {
@@ -214,27 +294,15 @@ kern_return_t litepcie_userclient::HandleWriteCSR(IOUserClientMethodArguments* a
         goto Exit;
     }
 
-    if (arguments->structureInput != nullptr) {
-        input = (ExternalReadWriteCSRStruct*)arguments->structureInput->getBytesNoCopy();
+    if (arguments->scalarInput != nullptr && arguments->scalarInputCount == 2) {
+        input = arguments->scalarInput;
     } else {
-        Log("structureInput was null");
+        Log("scalarInput was null");
         ret = kIOReturnBadArgument;
         goto Exit;
     }
-
-    if (input == nullptr) {
-        Log("input struct was null");
-        ret = kIOReturnBadArgument;
-        goto Exit;
-    }
-
-    // do the thing
-    output.addr = input->addr;
-    ivars->litepcie->WriteMemory(input->addr, input->value);
-    ivars->litepcie->ReadMemory(output.addr, &output.value);
-
-    // send our output out using osdata
-    arguments->structureOutput = OSData::withBytes(&output, sizeof(ExternalReadWriteCSRStruct));
+    
+    ivars->litepcie->WriteMemory(input[0], (uint32_t)input[1]);
 
 Exit:
     Log("finished");
@@ -245,29 +313,56 @@ kern_return_t IMPL(litepcie_userclient, CopyClientMemoryForType) //(uint64_t typ
 {
     Log("entered");
 
-    kern_return_t res = kIOReturnSuccess;
-
-    if (type == LITEPCIE_DMA0_READER) {
-        if (ivars->rdma != nullptr) {
-            ivars->rdma->retain();
-            *memory = (IOMemoryDescriptor*)ivars->rdma;
+    kern_return_t ret = kIOReturnSuccess;
+    
+    uint8_t dma_channel = type & 0xF;
+    
+    if (type & LITEPCIE_DMA_READER) {
+        if (ivars->rdma[dma_channel] != nullptr) {
+            ivars->rdma[dma_channel]->retain();
+            *memory = (IOMemoryDescriptor*)(ivars->rdma[dma_channel]);
+        } else {
+            ret = ivars->litepcie->CreateReaderBufferDescriptor(dma_channel, (IOMemoryDescriptor**)&(ivars->rdma[dma_channel]));
+            if (ret != kIOReturnSuccess) {
+                Log("litepcie::CreateReaderBufferDescriptor failed: 0x%x", ret);
+            } else {
+                ivars->rdma[dma_channel]->retain();
+                *memory = (IOMemoryDescriptor*)(ivars->rdma[dma_channel]);
+            }
         }
-    } else if (type == LITEPCIE_DMA0_WRITER) {
-        if (ivars->wdma != nullptr) {
-            ivars->wdma->retain();
-            *memory = (IOMemoryDescriptor*)ivars->wdma;
+    } else if (type & LITEPCIE_DMA_WRITER) {
+        if (ivars->wdma[dma_channel] != nullptr) {
+            ivars->wdma[dma_channel]->retain();
+            *memory = (IOMemoryDescriptor*)(ivars->wdma[dma_channel]);
+        } else {
+            ret = ivars->litepcie->CreateWriterBufferDescriptor(dma_channel, (IOMemoryDescriptor**)&(ivars->wdma[dma_channel]));
+            if (ret != kIOReturnSuccess) {
+                Log("litepcie::CreateWriterBufferDescriptor failed: 0x%x", ret);
+            } else {
+                ivars->wdma[dma_channel]->retain();
+                *memory = (IOMemoryDescriptor*)(ivars->wdma[dma_channel]);
+            }
         }
-    } else if (type == LITEPCIE_DMA0_COUNTS) {
-        if (ivars->cdma != nullptr) {
-            ivars->cdma->retain();
-            *memory = (IOMemoryDescriptor*)ivars->cdma;
+    } else if (type & LITEPCIE_DMA_COUNTS) {
+        if (ivars->cdma[dma_channel] != nullptr) {
+            ivars->cdma[dma_channel]->retain();
+            *memory = (IOMemoryDescriptor*)(ivars->cdma[dma_channel]);
             *options |= kIOUserClientMemoryReadOnly;
+        } else {
+            ret = ivars->litepcie->GetDmaCountDescriptor(dma_channel, (IOMemoryDescriptor**)&(ivars->cdma[dma_channel]));
+            if (ret != kIOReturnSuccess) {
+                Log("litepcie::GetDmaCountDescriptor failed: 0x%x", ret);
+            } else {
+                ivars->cdma[dma_channel]->retain();
+                *memory = (IOMemoryDescriptor*)(ivars->cdma[dma_channel]);
+                *options |= kIOUserClientMemoryReadOnly;
+            }
         }
     }  else {
-        res = this->CopyClientMemoryForType(type, options, memory, SUPERDISPATCH);
+        ret = this->CopyClientMemoryForType(type, options, memory, SUPERDISPATCH);
     }
 
     Log("finished");
 
-    return res;
+    return ret;
 }

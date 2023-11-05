@@ -28,23 +28,14 @@ inline void PrintErrorDetails(kern_return_t ret)
 
 void writel(io_connect_t connection, uint32_t addr, uint32_t val)
 {
-//    kern_return_t ret = kIOReturnSuccess;
-//    
-//    uint32_t olen = 0;
-//    uint64_t input[2] = { addr, val };
-//    ret = IOConnectCallScalarMethod(connection, LITEPCIE_WRITE_CSR, input, 2, nullptr, &olen);
+    kern_return_t ret = kIOReturnSuccess;
 
-    
-    const size_t inputSize = sizeof(ExternalReadWriteCSRStruct);
-    size_t outputSize = sizeof(ExternalReadWriteCSRStruct);
-
-    ExternalReadWriteCSRStruct input = { .addr = addr, .value = val };
-    ExternalReadWriteCSRStruct output = {};
-
-    ret = IOConnectCallStructMethod(connection, LITEPCIE_WRITE_CSR, &input, inputSize, &output, &outputSize);
+    uint32_t olen = 0;
+    uint64_t input[2] = { addr, val };
+    ret = IOConnectCallScalarMethod(connection, LITEPCIE_WRITE_CSR, input, 2, nullptr, &olen);
     
     if (ret != kIOReturnSuccess) {
-        printf("LITEPCIE_READ_CSR failed with error: 0x%08x.\n", ret);
+        printf("LITEPCIE_WRITE_CSR failed with error: 0x%08x.\n", ret);
         PrintErrorDetails(ret);
     }
 }
@@ -52,19 +43,18 @@ void writel(io_connect_t connection, uint32_t addr, uint32_t val)
 uint32_t readl(io_connect_t connection, uint32_t addr)
 {
     kern_return_t ret = kIOReturnSuccess;
-    const size_t inputSize = sizeof(ExternalReadWriteCSRStruct);
-    size_t outputSize = sizeof(ExternalReadWriteCSRStruct);
     
-    ExternalReadWriteCSRStruct input = { .addr = addr };
-    ExternalReadWriteCSRStruct output = {};
-
-    ret = IOConnectCallStructMethod(connection, LITEPCIE_READ_CSR, &input, inputSize, &output, &outputSize);
+    uint32_t olen = 1;
+    uint64_t output = 0;
+    uint64_t input = addr;
+    
+    ret = IOConnectCallScalarMethod(connection, LITEPCIE_READ_CSR, &input, 1, &output, &olen);
     if (ret != kIOReturnSuccess) {
         printf("LITEPCIE_READ_CSR failed with error: 0x%08x.\n", ret);
         PrintErrorDetails(ret);
     }
     
-    return output.value;
+    return (uint32_t)output;
 }
 
 int main(int argc, const char* argv[])
@@ -77,12 +67,6 @@ int main(int argc, const char* argv[])
     io_iterator_t iterator = IO_OBJECT_NULL;
     io_service_t service = IO_OBJECT_NULL;
     io_connect_t connection = IO_OBJECT_NULL;
-
-    // Async required variables
-    IONotificationPortRef notificationPort = nullptr;
-    mach_port_t machNotificationPort = NULL;
-    CFRunLoopSourceRef runLoopSource = nullptr;
-    io_async_ref64_t asyncRef = {};
 
     /// - Tag: ClientApp_Connect
     ret = IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceNameMatching(dextIdentifier), &iterator);
@@ -112,9 +96,9 @@ int main(int argc, const char* argv[])
         return EXIT_FAILURE;
     }
 
-    printf("result: addr: 0x%x data: 0x%08x\n", 0x1000, readl(connection, 0x1000));
+    printf("result: addr: 0x%lx data: 0x%08x\n", CSR_TO_OFFSET(CSR_DNA_BASE), readl(connection, CSR_TO_OFFSET(CSR_DNA_BASE)));
 
-    writel(connection, 0x3800, 0x1);
+    writel(connection, CSR_TO_OFFSET(CSR_LEDS_BASE), 0x1);
 
     mach_vm_address_t readerAddress = 0;
     mach_vm_address_t writerAddress = 0;
@@ -123,11 +107,11 @@ int main(int argc, const char* argv[])
     mach_vm_size_t writerSize = 0;
     mach_vm_size_t countsize = 0;
 
-    ret = IOConnectMapMemory64(connection, 0 /*memoryType*/, mach_task_self(), &readerAddress, &readerSize, kIOMapAnywhere);
+    ret = IOConnectMapMemory64(connection, LITEPCIE_DMA_READER | 0, mach_task_self(), &readerAddress, &readerSize, kIOMapAnywhere);
     printf("reader ret: 0x%x\n", ret);
-    ret = IOConnectMapMemory64(connection, 1 /*memoryType*/, mach_task_self(), &writerAddress, &writerSize, kIOMapAnywhere);
+    ret = IOConnectMapMemory64(connection, LITEPCIE_DMA_WRITER | 0, mach_task_self(), &writerAddress, &writerSize, kIOMapAnywhere);
     printf("writer ret: 0x%x\n", ret);
-    ret = IOConnectMapMemory64(connection, 3 /*memoryType*/, mach_task_self(), &countAddress, &countsize, kIOMapAnywhere);
+    ret = IOConnectMapMemory64(connection, LITEPCIE_DMA_COUNTS | 0, mach_task_self(), &countAddress, &countsize, kIOMapAnywhere);
     printf("counts ret: 0x%x\n", ret);
 
     printf("reader addr: 0x%llx writer addr: 0x%llx\n", readerAddress, writerAddress);
@@ -136,7 +120,7 @@ int main(int argc, const char* argv[])
         uint8_t* readerBuffer = reinterpret_cast<uint8_t*>(readerAddress);
         uint8_t* writerBuffer = reinterpret_cast<uint8_t*>(writerAddress);
         DMACounts* dmaCounts = reinterpret_cast<DMACounts*>(countAddress);
-        
+
         printf("counts rd: %llu wr: %llu\n", dmaCounts->hwReaderCountTotal, dmaCounts->hwWriterCountTotal);
 
         uint8_t* tmpBuffer = new uint8_t[readerSize];
@@ -163,7 +147,7 @@ int main(int argc, const char* argv[])
 
         auto trials = 1000;
         double avgTime = 0;
-        
+
         avgTime = 0;
         uint64_t swReaderCount = dmaCounts->hwReaderCountTotal;
         for (int i = 0; i < trials; i++) {
@@ -180,7 +164,7 @@ int main(int argc, const char* argv[])
         }
         avgTime /= trials;
         double readerRate = readerSize / (avgTime / 1'000'000'000.0f);
-        
+
         avgTime = 0;
         uint64_t swWriterCount = dmaCounts->hwWriterCountTotal;
         for (int i = 0; i < trials; i++) {
@@ -197,50 +181,13 @@ int main(int argc, const char* argv[])
         }
         avgTime /= trials;
         double writerRate = writerSize / (avgTime / 1'000'000'000.0f);
-        
-//        for (int i = 0; i < trials; i++) {
-//            for (int i = 0; i < readerSize; i += 1) {
-//                tmpBuffer[i] = std::rand();
-//            }
-//            uint64_t startTime = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
-//            memcpy(readerBuffer, tmpBuffer, readerSize);
-//            while (memcmp(writerBuffer, readerBuffer, readerSize))
-//                ;
-//            uint64_t endTime = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
-//            avgTime += (endTime - startTime);
-//        }
-//
-        
-        printf("%0.4fms @ %0.4f MB/s to for buffer loopback\n", avgTime / 1'000'000.0f, ((readerRate + writerRate) / 1'000'000));
 
-        //        for (int i = 0; i < writerSize; i += 0x100) {
-        //            if (writerBuffer[i] != readerBuffer[i]) {
-        //                printf("buffer check failed at idx: 0x%x with vals 0x%x 0x%x\n", i, writerBuffer[i], readerBuffer[i]);
-        //            } else {
-        //                printf("buffer check passed at idx: 0x%x with vals 0x%x 0x%x\n", i, writerBuffer[i], readerBuffer[i]);
-        //            }
-        //        }
-        //
-        //
-        //    printf("result: addr: 0x%llx data: 0x%08x\n", output.addr, output.value);
-        //
-        //    for (int i = 0; i < 0x10; i += 1) {
-        //        usleep(100'000);
-        //
-        //        input.addr = 0x3800;
-        //        input.value = i;
-        //
-        //        ret = IOConnectCallStructMethod(connection, LITEPCIE_WRITE_CSR, &input, inputSize, &output, &outputSize);
-        //        if (ret != kIOReturnSuccess) {
-        //            printf("LITEPCIE_WRITE_CSR failed with error: 0x%08x.\n", ret);
-        //            PrintErrorDetails(ret);
-        //        }
-        //    }
+        printf("%0.4fms @ %0.4f MB/s to for buffer loopback\n", avgTime / 1'000'000.0f, ((readerRate + writerRate) / 1'000'000));
     }
 
-    IOConnectUnmapMemory(connection, 0, mach_task_self(), readerAddress);
-    IOConnectUnmapMemory(connection, 1, mach_task_self(), writerAddress);
-//    IOConnectUnmapMemory(connection, 3, mach_task_self(), countAddress);
+    IOConnectUnmapMemory(connection, LITEPCIE_DMA_READER | 0, mach_task_self(), readerAddress);
+    IOConnectUnmapMemory(connection, LITEPCIE_DMA_WRITER | 0, mach_task_self(), writerAddress);
+    IOConnectUnmapMemory(connection, LITEPCIE_DMA_COUNTS | 0, mach_task_self(), countAddress);
 
     printf("Exiting");
 

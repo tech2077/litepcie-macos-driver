@@ -30,6 +30,8 @@ public:
         uint64_t* options,
         IOMemoryDescriptor** memory) override;
 
+    kern_return_t HandleICAP(IOUserClientMethodArguments* arguments) LOCALONLY;
+    kern_return_t HandleFlash(IOUserClientMethodArguments* arguments) LOCALONLY;
     kern_return_t HandleReadCSR(IOUserClientMethodArguments* arguments) LOCALONLY;
     kern_return_t HandleWriteCSR(IOUserClientMethodArguments* arguments) LOCALONLY;
 };

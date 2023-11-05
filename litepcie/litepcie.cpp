@@ -436,24 +436,11 @@ IMPL(litepcie, Start)
 {
     kern_return_t ret;
     uint32_t buf[64] = { 0 };
-    uint32_t rlevel = 0, wlevel = 0;
 
     uint64_t interruptType = 0;
     uint32_t msiInterruptIndex = 0;
 
     OSAction* interruptOccuredAction;
-
-    uint64_t bufferCapacity = DMA_BUFFER_TOTAL_SIZE;
-    uint64_t bufferAlignment = 0;
-
-    uint64_t dmaFlags = kIOMemoryDirectionInOut;
-    uint32_t dmaSegmentCount = 1;
-
-    uint64_t readerAddress = 0, writerAddress = 0;
-
-    IOAddressSegment physicalAddressSegment = { 0 };
-
-    uint32_t testSize = 8192;
 
     Log("entered");
 

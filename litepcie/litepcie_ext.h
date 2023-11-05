@@ -10,27 +10,39 @@
 
 #include "csr.h"
 
-struct DMACounts {
-    uint64_t hwReaderCountTotal = 0;
-    uint64_t hwReaderCountPrev = 0;
-    uint64_t hwWriterCountTotal = 0;
-    uint64_t hwWriterCountPrev = 0;
-} __attribute__((packed));
+#define CSR_TO_OFFSET(addr) ((addr)-CSR_BASE)
 
 enum LitePCIeMessageType {
     LITEPCIE_READ_CSR,
     LITEPCIE_WRITE_CSR,
+    LITEPCIE_ICAP,
+    LITEPCIE_FLASH,
 };
 
 enum LitePCIeMemoryType {
-    LITEPCIE_DMA0_READER,
-    LITEPCIE_DMA0_WRITER,
-    LITEPCIE_DMA0_COUNTS,
+    LITEPCIE_DMA_READER = 0x00010000,
+    LITEPCIE_DMA_WRITER = 0x00020000,
+    LITEPCIE_DMA_COUNTS = 0x00040000,
 };
 
-typedef struct {
-    uint64_t addr;
-    uint32_t value;
-} ExternalReadWriteCSRStruct;
+#define LITEPCIE_DMA_MEMORY(type, dma_channel) ((uint64_t)(type & dma_channel))
+
+typedef struct DMACounts {
+    uint64_t hwReaderCountTotal;
+    uint64_t hwReaderCountPrev;
+    uint64_t hwWriterCountTotal;
+    uint64_t hwWriterCountPrev;
+} __attribute__((packed)) DMACounts;
+
+typedef struct LitePCIeFlashCallData {
+    uint32_t tx_len; /* 8 to 40 */
+    uint64_t tx_data; /* 8 to 40 bits */
+    uint64_t rx_data; /* 40 bits */
+} __attribute__((packed)) LitePCIeFlashCallData;
+
+typedef struct LitePCIeICAPCallData {
+    uint8_t addr;
+    uint32_t data;
+} __attribute__((packed)) LitePCIeICAPCallData;
 
 #endif /* litepcie_ext_h */

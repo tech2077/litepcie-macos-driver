@@ -10,7 +10,10 @@
 
 #include "litepcie_ext.h"
 
-#define CSR_TO_OFFSET(addr) ((addr)-CSR_BASE)
+#define SPI_TIMEOUT 100000 /* in us */
+#define SPI_CTRL_START 0x1
+#define SPI_CTRL_LENGTH (1<<8)
+#define SPI_STATUS_DONE 0x1
 
 struct DMADescriptor {
     union {
