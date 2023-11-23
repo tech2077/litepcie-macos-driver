@@ -126,6 +126,12 @@ kern_return_t litepcie_userclient::ExternalMethod(uint64_t selector, IOUserClien
     Log("ExternalMethod() selector: %lli", selector);
 
     switch (selector) {
+    case LITEPCIE_CONFIG_DMA_READER_CHANNEL: {
+        ret = HandleConfigDmaChannel(arguments, true);
+    } break;
+    case LITEPCIE_CONFIG_DMA_WRITER_CHANNEL: {
+        ret = HandleConfigDmaChannel(arguments, false);
+    } break;
     case LITEPCIE_READ_CSR: {
         ret = HandleReadCSR(arguments);
     } break;
@@ -145,6 +151,59 @@ kern_return_t litepcie_userclient::ExternalMethod(uint64_t selector, IOUserClien
 
 Exit:
     Log("ExternalMethod() finished");
+    return ret;
+}
+
+kern_return_t litepcie_userclient::HandleConfigDmaChannel(IOUserClientMethodArguments* arguments, bool is_reader)
+{
+    Log("entered");
+    kern_return_t ret = kIOReturnSuccess;
+
+    LitePCIeConfigDmaChannelData* input;
+
+    // bunch of checks to see if out input is valid on multiple levels
+    if (arguments == nullptr) {
+        Log("Arguments were null");
+        ret = kIOReturnBadArgument;
+        goto Exit;
+    }
+
+    if (arguments->structureInput != nullptr) {
+        input = (LitePCIeConfigDmaChannelData*)arguments->structureInput->getBytesNoCopy();
+    } else {
+        Log("structureInput was null");
+        ret = kIOReturnBadArgument;
+        goto Exit;
+    }
+
+    if (input == nullptr) {
+        Log("input struct was null");
+        ret = kIOReturnBadArgument;
+        goto Exit;
+    }
+    
+    if (is_reader) {
+        if (ivars->litepcie->IsDMAReaderChannelEnabled(input->channel) != input->enable) {
+            if (input->enable){
+                ivars->litepcie->SetupDMAReaderChannel(input->channel);
+                ivars->litepcie->StartDMAReaderChannel(input->channel, true);
+            } else {
+                ivars->litepcie->StopDMAReaderChannel(input->channel);
+            }
+        }
+    } else {
+        if (ivars->litepcie->IsDMAWriterChannelEnabled(input->channel) != input->enable) {
+            if (input->enable){
+                ivars->litepcie->SetupDMAWriterChannel(input->channel);
+                ivars->litepcie->StartDMAWriterChannel(input->channel, true);
+            } else {
+                ivars->litepcie->StopDMAWriterChannel(input->channel);
+            }
+        }
+    }
+    
+Exit:
+    Log("finished");
     return ret;
 }
 
@@ -186,6 +245,7 @@ kern_return_t litepcie_userclient::HandleFlash(IOUserClientMethodArguments* argu
         goto Exit;
     }
 
+#ifdef CSR_FLASH_SPI_MOSI_ADDR
     ivars->litepcie->WriteMemory(CSR_TO_OFFSET(CSR_FLASH_SPI_MOSI_ADDR), input->tx_data >> 32);
     ivars->litepcie->WriteMemory(CSR_TO_OFFSET(CSR_FLASH_SPI_MOSI_ADDR) + 4, (uint32_t)(input->tx_data & 0xFF'FF'FF'FF));
     ivars->litepcie->WriteMemory(CSR_TO_OFFSET(CSR_FLASH_SPI_CONTROL_ADDR), SPI_CTRL_START | (input->tx_len * SPI_CTRL_LENGTH));
@@ -202,6 +262,7 @@ kern_return_t litepcie_userclient::HandleFlash(IOUserClientMethodArguments* argu
     ivars->litepcie->ReadMemory(CSR_TO_OFFSET(CSR_FLASH_SPI_MISO_ADDR), &msb);
     ivars->litepcie->ReadMemory(CSR_TO_OFFSET(CSR_FLASH_SPI_MISO_ADDR) + 4, &lsb);
     output.rx_data = ((uint64_t)msb << 32) | lsb;
+#endif
     
     // send our output out using osdata
     arguments->structureOutput = OSData::withBytes(&output, sizeof(LitePCIeFlashCallData));

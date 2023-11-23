@@ -44,6 +44,9 @@ struct DMAChannel {
 
     uint32_t readerInterrupt;
     uint32_t writerInterrupt;
+    
+    bool readerEnabled;
+    bool writerEnabled;
 
     IODMACommand** dmaReaderCommands;
     IOBufferMemoryDescriptor** dmaReaderBuffers;

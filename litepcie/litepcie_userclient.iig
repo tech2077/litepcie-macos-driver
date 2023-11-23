@@ -34,6 +34,7 @@ public:
     kern_return_t HandleFlash(IOUserClientMethodArguments* arguments) LOCALONLY;
     kern_return_t HandleReadCSR(IOUserClientMethodArguments* arguments) LOCALONLY;
     kern_return_t HandleWriteCSR(IOUserClientMethodArguments* arguments) LOCALONLY;
+    kern_return_t HandleConfigDmaChannel(IOUserClientMethodArguments* arguments, bool is_reader) LOCALONLY;
 };
 
 #endif /* litepcie_userclient_h */

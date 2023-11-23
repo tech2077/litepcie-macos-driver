@@ -16,6 +16,7 @@
 #include <cstring>
 
 #include "csr.h"
+#include "config.h"
 #include "litepcie_ext.h"
 
 
@@ -49,12 +50,47 @@ uint32_t readl(io_connect_t connection, uint32_t addr)
     uint64_t input = addr;
     
     ret = IOConnectCallScalarMethod(connection, LITEPCIE_READ_CSR, &input, 1, &output, &olen);
+    
     if (ret != kIOReturnSuccess) {
         printf("LITEPCIE_READ_CSR failed with error: 0x%08x.\n", ret);
         PrintErrorDetails(ret);
     }
     
     return (uint32_t)output;
+}
+
+void config_reader_dma(io_connect_t connection, uint32_t chan_idx, bool enable)
+{
+    kern_return_t ret = kIOReturnSuccess;
+    
+    LitePCIeConfigDmaChannelData data {
+        .channel = chan_idx,
+        .enable = enable,
+    };
+    
+    ret = IOConnectCallStructMethod(connection, LITEPCIE_CONFIG_DMA_READER_CHANNEL, &data, sizeof(LitePCIeConfigDmaChannelData), nullptr, 0);
+    
+    if (ret != kIOReturnSuccess) {
+        printf("LITEPCIE_CONFIG_DMA_READER_CHANNEL failed with error: 0x%08x.\n", ret);
+        PrintErrorDetails(ret);
+    }
+}
+
+void config_writer_dma(io_connect_t connection, uint32_t chan_idx, bool enable)
+{
+    kern_return_t ret = kIOReturnSuccess;
+    
+    LitePCIeConfigDmaChannelData data {
+        .channel = chan_idx,
+        .enable = enable,
+    };
+    
+    ret = IOConnectCallStructMethod(connection, LITEPCIE_CONFIG_DMA_WRITER_CHANNEL, &data, sizeof(LitePCIeConfigDmaChannelData), nullptr, 0);
+    
+    if (ret != kIOReturnSuccess) {
+        printf("LITEPCIE_CONFIG_DMA_WRITER_CHANNEL failed with error: 0x%08x.\n", ret);
+        PrintErrorDetails(ret);
+    }
 }
 
 int main(int argc, const char* argv[])
@@ -95,6 +131,9 @@ int main(int argc, const char* argv[])
         printf("Failed to match to device.\n");
         return EXIT_FAILURE;
     }
+    
+    config_reader_dma(connection, 0, true);
+    config_writer_dma(connection, 0, true);
 
     printf("result: addr: 0x%lx data: 0x%08x\n", CSR_TO_OFFSET(CSR_DNA_BASE), readl(connection, CSR_TO_OFFSET(CSR_DNA_BASE)));
 
@@ -152,11 +191,11 @@ int main(int argc, const char* argv[])
         uint64_t swReaderCount = dmaCounts->hwReaderCountTotal;
         for (int i = 0; i < trials; i++) {
             uint64_t startTime = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
-            for (int j = 0; j < 256; j++) {
+            for (int j = 0; j < DMA_BUFFER_COUNT; j++) {
                 while(dmaCounts->hwReaderCountTotal <= swReaderCount);
-                memcpy(readerBuffer + ((swReaderCount % 256) * 0x4000),
-                       tmpBuffer + ((swReaderCount % 256) * 0x4000),
-                       0x4000);
+                memcpy(readerBuffer + ((swReaderCount % DMA_BUFFER_COUNT) * DMA_BUFFER_SIZE),
+                       tmpBuffer + ((swReaderCount % DMA_BUFFER_COUNT) * DMA_BUFFER_SIZE),
+                       DMA_BUFFER_SIZE);
                 swReaderCount += 1;
             }
             uint64_t endTime = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
@@ -169,11 +208,11 @@ int main(int argc, const char* argv[])
         uint64_t swWriterCount = dmaCounts->hwWriterCountTotal;
         for (int i = 0; i < trials; i++) {
             uint64_t startTime = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
-            for (int j = 0; j < 256; j++) {
+            for (int j = 0; j < DMA_BUFFER_COUNT; j++) {
                 while(dmaCounts->hwWriterCountTotal <= swWriterCount);
-                memcmp(writerBuffer + ((swWriterCount % 256) * 0x4000),
-                       tmpBuffer + ((swWriterCount % 256) * 0x4000),
-                       0x4000);
+                memcmp(writerBuffer + ((swWriterCount % DMA_BUFFER_COUNT) * DMA_BUFFER_SIZE),
+                       tmpBuffer + ((swWriterCount % DMA_BUFFER_COUNT) * DMA_BUFFER_SIZE),
+                       DMA_BUFFER_SIZE);
                 swWriterCount += 1;
             }
             uint64_t endTime = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
@@ -188,6 +227,9 @@ int main(int argc, const char* argv[])
     IOConnectUnmapMemory(connection, LITEPCIE_DMA_READER | 0, mach_task_self(), readerAddress);
     IOConnectUnmapMemory(connection, LITEPCIE_DMA_WRITER | 0, mach_task_self(), writerAddress);
     IOConnectUnmapMemory(connection, LITEPCIE_DMA_COUNTS | 0, mach_task_self(), countAddress);
+    
+    config_reader_dma(connection, 0, false);
+    config_writer_dma(connection, 0, false);
 
     printf("Exiting");
 

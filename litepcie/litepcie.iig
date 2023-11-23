@@ -49,6 +49,9 @@ public:
     kern_return_t CreateWriterBufferDescriptor(int chan_idx, IOMemoryDescriptor** buffer) LOCALONLY;
     
     kern_return_t GetDmaCountDescriptor(int chan_idx, IOMemoryDescriptor** buffer) LOCALONLY;
+    
+    bool IsDMAReaderChannelEnabled(int chan_idx) LOCALONLY;
+    bool IsDMAWriterChannelEnabled(int chan_idx) LOCALONLY;
 };
 
 #endif /* litepcie_h */

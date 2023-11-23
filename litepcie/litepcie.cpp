@@ -53,6 +53,9 @@ kern_return_t litepcie::InitDMAChannel(int chan_idx)
 
     dmaSpecification.options = kIODMACommandCreateNoOptions;
     dmaSpecification.maxAddressBits = 32;
+    
+    ivars->channel[chan_idx]->readerEnabled = false;
+    ivars->channel[chan_idx]->writerEnabled = false;
 
     ivars->channel[chan_idx]->dmaReaderVirtualSegments = IONew(IOAddressSegment*, DMA_BUFFER_COUNT);
     ivars->channel[chan_idx]->dmaReaderPhysicalSegments = IONew(IOAddressSegment*, DMA_BUFFER_COUNT);
@@ -225,6 +228,16 @@ kern_return_t litepcie::SetupDMAWriterChannel(int chan_idx)
     return ret;
 }
 
+bool litepcie::IsDMAReaderChannelEnabled(int chan_idx)
+{
+    return ivars->channel[chan_idx]->readerEnabled;
+}
+
+bool litepcie::IsDMAWriterChannelEnabled(int chan_idx)
+{
+    return ivars->channel[chan_idx]->writerEnabled;
+}
+
 kern_return_t litepcie::StartDMAReaderChannel(int chan_idx, bool loop)
 {
     Log("entered");
@@ -235,6 +248,8 @@ kern_return_t litepcie::StartDMAReaderChannel(int chan_idx, bool loop)
 
     ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_TABLE_LOOP_PROG_N_ADDR), loop ? 1 : 0);
     ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_ENABLE_ADDR), 1);
+    
+    ivars->channel[chan_idx]->readerEnabled = true;
 
     Log("finished");
     return ret;
@@ -250,6 +265,8 @@ kern_return_t litepcie::StartDMAWriterChannel(int chan_idx, bool loop)
 
     ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_WRITER_TABLE_LOOP_PROG_N_ADDR), loop ? 1 : 0);
     ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_WRITER_ENABLE_ADDR), 1);
+    
+    ivars->channel[chan_idx]->writerEnabled = true;
 
     Log("finished");
     return ret;
@@ -267,6 +284,8 @@ kern_return_t litepcie::StopDMAReaderChannel(int chan_idx)
 
     ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_ENABLE_ADDR), 0);
     ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(PCIE_DMA_READER_TABLE_FLUSH_OFFSET), 1);
+    
+    ivars->channel[chan_idx]->readerEnabled = false;
 
     Log("finished");
     return ret;
@@ -284,6 +303,8 @@ kern_return_t litepcie::StopDMAWriterChannel(int chan_idx)
 
     ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_WRITER_ENABLE_ADDR), 0);
     ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(PCIE_DMA_WRITER_TABLE_FLUSH_OFFSET), 1);
+    
+    ivars->channel[chan_idx]->writerEnabled = false;
 
     Log("finished");
     return ret;
@@ -296,6 +317,9 @@ kern_return_t litepcie::StopDMAChannel(int chan_idx)
 
     ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_READER_ENABLE_ADDR), 0);
     ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_WRITER_ENABLE_ADDR), 0);
+    
+    ivars->channel[chan_idx]->readerEnabled = false;
+    ivars->channel[chan_idx]->writerEnabled = false;
 
     Log("finished");
     return ret;
@@ -348,11 +372,6 @@ kern_return_t litepcie::CreateReaderBufferDescriptor(int chan_idx, IOMemoryDescr
 
     IOMemoryDescriptor* tmp_buffers[32];
 
-    //    for (int i = 0; i < DMA_BUFFER_COUNT; i += 1) {
-    //        Log("Reader buffer %i [0]: 0x%x", i, reinterpret_cast<uint8_t*>(ivars->channel[chan_idx]->dmaReaderVirtualSegments[i]->address)[0]);
-    //        IOSleep(2);
-    //    }
-
     // this is dumb
     for (int i = 0; i < DMA_BUFFER_COUNT / 32; i += 1) {
         IOBufferMemoryDescriptor::CreateWithMemoryDescriptors(kIOMemoryDirectionInOut, 32, (IOMemoryDescriptor**)(&ivars->channel[chan_idx]->dmaReaderBuffers[i * 32]), (IOMemoryDescriptor**)&tmp_buffers[i]);
@@ -374,11 +393,6 @@ kern_return_t litepcie::CreateWriterBufferDescriptor(int chan_idx, IOMemoryDescr
     Log("entered");
 
     IOMemoryDescriptor* tmp_buffers[32];
-
-    //    for (int i = 0; i < DMA_BUFFER_COUNT; i += 1) {
-    //        Log("Writer buffer %i [0]: 0x%x", i, reinterpret_cast<uint8_t*>(ivars->channel[chan_idx]->dmaWriterVirtualSegments[i]->address)[0]);
-    //        IOSleep(2);
-    //    }
 
     // this is dumb
     for (int i = 0; i < DMA_BUFFER_COUNT / 32; i += 1) {
@@ -556,17 +570,75 @@ IMPL(litepcie, Start)
 
     ivars->pciDevice->MemoryWrite32(0, CSR_TO_OFFSET(CSR_PCIE_DMA0_LOOPBACK_ENABLE_ADDR), 1);
 
+#ifdef CSR_PCIE_DMA0_BASE
     ivars->channel[0] = new DMAChannel;
     ivars->channel[0]->baseAddress = CSR_PCIE_DMA0_BASE;
     ivars->channel[0]->writerInterrupt = PCIE_DMA0_WRITER_INTERRUPT;
     ivars->channel[0]->readerInterrupt = PCIE_DMA0_READER_INTERRUPT;
     InitDMAChannel(0);
+#endif
+    
+#ifdef CSR_PCIE_DMA1_BASE
+    ivars->channel[1] = new DMAChannel;
+    ivars->channel[1]->baseAddress = CSR_PCIE_DMA0_BASE;
+    ivars->channel[1]->writerInterrupt = PCIE_DMA0_WRITER_INTERRUPT;
+    ivars->channel[1]->readerInterrupt = PCIE_DMA0_READER_INTERRUPT;
+    InitDMAChannel(1);
+#endif
+    
+#ifdef CSR_PCIE_DMA2_BASE
+    ivars->channel[2] = new DMAChannel;
+    ivars->channel[2]->baseAddress = CSR_PCIE_DMA0_BASE;
+    ivars->channel[2]->writerInterrupt = PCIE_DMA0_WRITER_INTERRUPT;
+    ivars->channel[2]->readerInterrupt = PCIE_DMA0_READER_INTERRUPT;
+    InitDMAChannel(2);
+#endif
+    
+#ifdef CSR_PCIE_DMA3_BASE
+    ivars->channel[3] = new DMAChannel;
+    ivars->channel[3]->baseAddress = CSR_PCIE_DMA0_BASE;
+    ivars->channel[3]->writerInterrupt = PCIE_DMA0_WRITER_INTERRUPT;
+    ivars->channel[3]->readerInterrupt = PCIE_DMA0_READER_INTERRUPT;
+    InitDMAChannel(3);
+#endif
+    
+#ifdef CSR_PCIE_DMA4_BASE
+    ivars->channel[4] = new DMAChannel;
+    ivars->channel[4]->baseAddress = CSR_PCIE_DMA0_BASE;
+    ivars->channel[4]->writerInterrupt = PCIE_DMA0_WRITER_INTERRUPT;
+    ivars->channel[4]->readerInterrupt = PCIE_DMA0_READER_INTERRUPT;
+    InitDMAChannel(4);
+#endif
+    
+#ifdef CSR_PCIE_DMA5_BASE
+    ivars->channel[5] = new DMAChannel;
+    ivars->channel[5]->baseAddress = CSR_PCIE_DMA0_BASE;
+    ivars->channel[5]->writerInterrupt = PCIE_DMA0_WRITER_INTERRUPT;
+    ivars->channel[5]->readerInterrupt = PCIE_DMA0_READER_INTERRUPT;
+    InitDMAChannel(5);
+#endif
+    
+#ifdef CSR_PCIE_DMA6_BASE
+    ivars->channel[6] = new DMAChannel;
+    ivars->channel[6]->baseAddress = CSR_PCIE_DMA0_BASE;
+    ivars->channel[6]->writerInterrupt = PCIE_DMA0_WRITER_INTERRUPT;
+    ivars->channel[6]->readerInterrupt = PCIE_DMA0_READER_INTERRUPT;
+    InitDMAChannel(6);
+#endif
+    
+#ifdef CSR_PCIE_DMA7_BASE
+    ivars->channel[7] = new DMAChannel;
+    ivars->channel[7]->baseAddress = CSR_PCIE_DMA0_BASE;
+    ivars->channel[7]->writerInterrupt = PCIE_DMA0_WRITER_INTERRUPT;
+    ivars->channel[7]->readerInterrupt = PCIE_DMA0_READER_INTERRUPT;
+    InitDMAChannel(7);
+#endif
 
-    SetupDMAWriterChannel(0);
-    SetupDMAReaderChannel(0);
-
-    StartDMAWriterChannel(0, true);
-    StartDMAReaderChannel(0, true);
+//    SetupDMAWriterChannel(0);
+//    SetupDMAReaderChannel(0);
+//
+//    StartDMAWriterChannel(0, true);
+//    StartDMAReaderChannel(0, true);
 
     // register service so we can be access by client app
     ret = RegisterService();

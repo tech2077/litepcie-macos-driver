@@ -30,9 +30,10 @@ int64_t get_time_ms(void)
 uint32_t litepcie_readl(int fd, uint32_t addr) {
     kern_return_t ret = kIOReturnSuccess;
 
-    uint32_t olen = 0;
+    uint32_t olen = 1;
     uint64_t output = 0;
     uint64_t input = addr;
+    
     ret = IOConnectCallScalarMethod(fd, LITEPCIE_READ_CSR, &input, 1, &output, &olen);
     
     if (ret != kIOReturnSuccess) {
@@ -68,4 +69,60 @@ void litepcie_reload(int fd) {
         printf("LITEPCIE_WRITE_CSR failed with error: 0x%08x.\n", ret);
         _print_kerr_details(ret);
     }
+}
+
+int litepcie_open(const char* name, int flags) {
+    static const char* dextIdentifier = "litepcie";
+
+    kern_return_t ret = kIOReturnSuccess;
+    io_iterator_t iterator = IO_OBJECT_NULL;
+    io_service_t service = IO_OBJECT_NULL;
+    static io_connect_t connection = IO_OBJECT_NULL;
+    
+    if (connection != IO_OBJECT_NULL) {
+        printf("already opened service\n");
+        return connection;
+    }
+
+    /// - Tag: ClientApp_Connect
+    ret = IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceNameMatching(dextIdentifier), &iterator);
+    if (ret != kIOReturnSuccess) {
+        printf("Unable to find service for identifier with error: 0x%08x.\n", ret);
+        _print_kerr_details(ret);
+    }
+
+    printf("Searching for dext service...\n");
+    while ((service = IOIteratorNext(iterator)) != IO_OBJECT_NULL) {
+        // Open a connection to this user client as a server to that client, and store the instance in "service"
+        ret = IOServiceOpen(service, mach_task_self_, kIOHIDServerConnectType, &connection);
+
+        if (ret == kIOReturnSuccess) {
+            printf("\tOpened service.\n");
+            break;
+        } else {
+            printf("\tFailed opening service with error: 0x%08x.\n", ret);
+        }
+
+        IOObjectRelease(service);
+    }
+    IOObjectRelease(iterator);
+
+    if (service == IO_OBJECT_NULL) {
+        printf("Failed to match to device.\n");
+        return EXIT_FAILURE;
+    }
+    
+    return connection;
+}
+
+
+void litepcie_close(int fd) {
+    
+}
+
+void _print_kerr_details(kern_return_t ret)
+{
+    printf("\tSystem: 0x%02x\n", err_get_system(ret));
+    printf("\tSubsystem: 0x%03x\n", err_get_sub(ret));
+    printf("\tCode: 0x%04x\n", err_get_code(ret));
 }

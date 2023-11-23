@@ -8,11 +8,15 @@
 #ifndef litepcie_ext_h
 #define litepcie_ext_h
 
+#include <stdbool.h>
+
 #include "csr.h"
 
 #define CSR_TO_OFFSET(addr) ((addr)-CSR_BASE)
 
 enum LitePCIeMessageType {
+    LITEPCIE_CONFIG_DMA_READER_CHANNEL,
+    LITEPCIE_CONFIG_DMA_WRITER_CHANNEL,
     LITEPCIE_READ_CSR,
     LITEPCIE_WRITE_CSR,
     LITEPCIE_ICAP,
@@ -33,6 +37,11 @@ typedef struct DMACounts {
     uint64_t hwWriterCountTotal;
     uint64_t hwWriterCountPrev;
 } __attribute__((packed)) DMACounts;
+
+typedef struct LitePCIeConfigDmaChannelData {
+    uint32_t channel;
+    bool enable;
+} __attribute__((packed)) LitePCIeConfigDmaChannelData;
 
 typedef struct LitePCIeFlashCallData {
     uint32_t tx_len; /* 8 to 40 */
