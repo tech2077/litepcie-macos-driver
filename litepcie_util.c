@@ -455,7 +455,7 @@ static void dma_test(uint8_t zero_copy, uint8_t external_loopback, int data_widt
                 printf("\e[1mDMA_SPEED(Gbps)\tTX_BUFFERS\tRX_BUFFERS\tDIFF\tERRORS\e[0m\n");
             i++;
             /* Print statistics. */
-            printf("%14.2f\t%10" PRIu64 "\t%10" PRIu64 "\t%4" PRIu64 "\t%6u\n",
+            printf("%14.2f\t%10" PRIu64 "\t%10" PRIu64 "\t%4" PRIi64 "\t%6u\n",
                    (double)(dma.reader_sw_count - reader_sw_count_last) * DMA_BUFFER_SIZE * 8 * data_width / (get_next_pow2(data_width) * (double)duration * 1e6),
                    dma.reader_sw_count,
                    dma.writer_sw_count,
