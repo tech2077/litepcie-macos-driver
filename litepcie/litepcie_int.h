@@ -1,10 +1,3 @@
-//
-//  structs.h
-//  litepcie
-//
-//  Created by skolaut on 10/6/23.
-//
-
 #ifndef structs_h
 #define structs_h
 

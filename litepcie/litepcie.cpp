@@ -1,10 +1,3 @@
-//
-//  litepcie.cpp
-//  litepcie
-//
-//  Created by skolaut on 9/9/23.
-//
-
 #include <time.h>
 
 #include <os/log.h>
@@ -372,7 +365,7 @@ kern_return_t litepcie::CreateReaderBufferDescriptor(int chan_idx, IOMemoryDescr
 
     IOMemoryDescriptor* tmp_buffers[32];
 
-    // this is dumb
+    // this is dumb, due to a bug with large buffers we have to create a large pool of temporary buffers for the descriptor
     for (int i = 0; i < DMA_BUFFER_COUNT / 32; i += 1) {
         IOBufferMemoryDescriptor::CreateWithMemoryDescriptors(kIOMemoryDirectionInOut, 32, (IOMemoryDescriptor**)(&ivars->channel[chan_idx]->dmaReaderBuffers[i * 32]), (IOMemoryDescriptor**)&tmp_buffers[i]);
     }
@@ -380,7 +373,7 @@ kern_return_t litepcie::CreateReaderBufferDescriptor(int chan_idx, IOMemoryDescr
     if (__builtin_available(driverkit 20.0, *)) {
         ret = IOBufferMemoryDescriptor::CreateWithMemoryDescriptors(kIOMemoryDirectionInOut, DMA_BUFFER_COUNT / 32, (IOMemoryDescriptor**)tmp_buffers, buffer);
     } else {
-        // Fallback on earlier versions
+        // Fallback on earlier versions not possible
     }
 
     Log("finished");
@@ -394,7 +387,7 @@ kern_return_t litepcie::CreateWriterBufferDescriptor(int chan_idx, IOMemoryDescr
 
     IOMemoryDescriptor* tmp_buffers[32];
 
-    // this is dumb
+    // this is dumb, due to a bug with large buffers we have to create a large pool of temporary buffers for the descriptor
     for (int i = 0; i < DMA_BUFFER_COUNT / 32; i += 1) {
         IOBufferMemoryDescriptor::CreateWithMemoryDescriptors(kIOMemoryDirectionInOut, 32, (IOMemoryDescriptor**)(&ivars->channel[chan_idx]->dmaWriterBuffers[i * 32]), (IOMemoryDescriptor**)&tmp_buffers[i]);
     }
@@ -402,7 +395,7 @@ kern_return_t litepcie::CreateWriterBufferDescriptor(int chan_idx, IOMemoryDescr
     if (__builtin_available(driverkit 20.0, *)) {
         ret = IOBufferMemoryDescriptor::CreateWithMemoryDescriptors(kIOMemoryDirectionInOut, DMA_BUFFER_COUNT / 32, (IOMemoryDescriptor**)tmp_buffers, buffer);
     } else {
-        // Fallback on earlier versions
+        // Fallback on earlier versions not possible
     }
 
     Log("finished");

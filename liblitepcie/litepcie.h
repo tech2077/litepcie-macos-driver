@@ -1,9 +1,12 @@
-//
-//  litepcie.h
-//  liblitepcie
-//
-//  Created by skolaut on 10/7/23.
-//
+/* SPDX-License-Identifier: BSD-2-Clause
+ *
+ * LitePCIe library
+ *
+ * This file is part of LitePCIe.
+ *
+ * Copyright (C) 2018-2023 / EnjoyDigital  / florent@enjoy-digital.fr
+ *
+ */
 
 #ifndef litepcie_h
 #define litepcie_h

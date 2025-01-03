@@ -1,10 +1,3 @@
-//
-//  litepcie_ext.h
-//  litepcie
-//
-//  Created by skolaut on 10/7/23.
-//
-
 #ifndef litepcie_ext_h
 #define litepcie_ext_h
 

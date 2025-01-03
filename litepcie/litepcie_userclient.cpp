@@ -1,10 +1,3 @@
-//
-//  litepcie.cpp
-//  litepcie
-//
-//  Created by skolaut on 9/9/23.
-//
-
 #include <os/log.h>
 
 #include <DriverKit/IOLib.h>

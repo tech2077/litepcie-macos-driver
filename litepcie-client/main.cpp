@@ -1,11 +1,3 @@
-//
-//  main.cpp
-//  litepcie-client
-//
-//  Created by skolaut on 9/10/23.
-//
-//  Based on example NullDriver client
-
 #include <IOKit/IOKitLib.h>
 #include <IOKit/IOReturn.h>
 #include <IOKit/hidsystem/IOHIDShared.h>

@@ -1,4 +1,4 @@
-// Taken from Karabiner, who have a good shim app solution for driverhit here
+// Taken from Karabiner (Unlicensed license), who have a good shim app solution for driverhit here
 // https://github.com/pqrs-org/Karabiner-DriverKit-VirtualHIDDevice/blob/main/src/Manager/Sources/Manager/ExtensionManager.swift
 
 import Foundation
