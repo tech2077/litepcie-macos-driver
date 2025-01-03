@@ -385,16 +385,17 @@ static void dma_test(uint8_t zero_copy, uint8_t external_loopback, int data_widt
         /* Update DMA status. */
         litepcie_dma_process(&dma);
 
-        // printf("wr av: %d rd av: %d wr swc: %d rd swc: %d wr hwc: %d rd hwc: %d\n",
-        //     dma.buffers_available_write, dma.buffers_available_read,
-        //     dma.writer_sw_count, dma.reader_sw_count,
-        //     dma.hw_counts->hwWriterCountTotal, dma.hw_counts->hwReaderCountTotal);
+        printf("wr av: %d rd av: %d wr swc: %d rd swc: %d wr hwc: %d rd hwc: %d\n",
+            dma.buffers_available_write, dma.buffers_available_read,
+            dma.writer_sw_count, dma.reader_sw_count,
+            dma.hw_counts->hwWriterCountTotal, dma.hw_counts->hwReaderCountTotal);
 
 #ifdef DMA_CHECK_DATA
         char *buf_wr;
         char *buf_rd;
 
         /* DMA-TX Write. */
+        // printf("t0\n");
         while (1) {
             /* Get Write buffer. */
             buf_wr = litepcie_dma_next_write_buffer(&dma);
@@ -404,17 +405,38 @@ static void dma_test(uint8_t zero_copy, uint8_t external_loopback, int data_widt
             /* Write data to buffer. */
             write_pn_data((uint32_t *) buf_wr, DMA_BUFFER_SIZE / sizeof(uint32_t), &seed_wr, data_width);
         }
+        // printf("t1\n");
+
+        // /* Get Read buffer. */
+        // buf_rd = litepcie_dma_next_read_buffer(&dma);
+        // /* Break when no buffer available for Read. */
+        // if (buf_rd) {
+        //     int i;
+        //     uint32_t seed;
+        //     uint32_t mask = get_data_mask(data_width);
+
+        //     seed = seed_wr;
+        //     for(i = 0; i < DMA_BUFFER_SIZE / sizeof(uint32_t); i++) {
+        //         int v = (seed_to_data(seed) & mask);
+        //         seed = add_mod_int(seed, 1, DMA_BUFFER_SIZE / sizeof(uint32_t));
+        //         printf("0x%x 0x%x 0x%x 0x%x\n", seed, i, v, ((uint32_t*)buf_rd)[i]);
+        //     }
+        //     printf("\n");
+        // }
 
         /* DMA-RX Read/Check */
+        // printf("t2\n");
         while (1) {
             /* Get Read buffer. */
             buf_rd = litepcie_dma_next_read_buffer(&dma);
             /* Break when no buffer available for Read. */
             if (!buf_rd)
                 break;
+            // printf("t3 %p %d\n", buf_rd, dma.buffers_available_read);
             /* Skip the first 128 DMA loops. */
-            if (dma.writer_hw_count < 128*DMA_BUFFER_COUNT)
-                break;
+            // if (dma.writer_hw_count < 128*DMA_BUFFER_COUNT)
+            //     break;
+            // printf("t4\n");
             /* When running... */
             if (run) {
                 /* Check data in Read buffer. */
@@ -424,10 +446,10 @@ static void dma_test(uint8_t zero_copy, uint8_t external_loopback, int data_widt
             } else {
                 /* Find initial Delay/Seed (Useful when loopback is introducing delay). */
                 uint32_t errors_min = 0xffffffff;
-                for (int delay = 0; delay < DMA_BUFFER_SIZE / sizeof(uint32_t); delay++) {
+                for (int delay = 0; delay < DMA_BUFFER_SIZE * DMA_BUFFER_COUNT; delay++) {
                     seed_rd = delay;
                     errors = check_pn_data((uint32_t *) buf_rd, DMA_BUFFER_SIZE / sizeof(uint32_t), &seed_rd, data_width);
-                    //printf("delay: %d / errors: %d\n", delay, errors);
+                    printf("delay: %d / errors: %d\n", delay, errors);
                     if (errors < errors_min)
                         errors_min = errors;
                     if (errors < (DMA_BUFFER_SIZE / sizeof(uint32_t)) / 2) {
@@ -443,7 +465,6 @@ static void dma_test(uint8_t zero_copy, uint8_t external_loopback, int data_widt
                     goto end;
                 }
             }
-
         }
 #endif
 

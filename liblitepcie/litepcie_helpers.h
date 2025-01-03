@@ -20,6 +20,8 @@
 #include <stdint.h>
 #include <sys/ioctl.h>
 
+#define MAX(x, y) (((x) > (y)) ? (x) : (y))
+#define MIN(x, y) (((x) < (y)) ? (x) : (y))
 
 void _print_kerr_details(kern_return_t ret);
 

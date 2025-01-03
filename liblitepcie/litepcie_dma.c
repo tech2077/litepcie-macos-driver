@@ -75,6 +75,8 @@ void litepcie_dma_writer(struct litepcie_dma_ctrl *dma, uint8_t enable) {
         printf("LITEPCIE_CONFIG_DMA_WRITER_CHANNEL failed with error: 0x%08x.\n", ret);
         _print_kerr_details(ret);
     }
+    
+    dma->writer_enabled = enable;
 }
 
 void litepcie_dma_reader(struct litepcie_dma_ctrl *dma, uint8_t enable) {
@@ -90,6 +92,8 @@ void litepcie_dma_reader(struct litepcie_dma_ctrl *dma, uint8_t enable) {
         printf("LITEPCIE_CONFIG_DMA_READER_CHANNEL failed with error: 0x%08x.\n", ret);
         _print_kerr_details(ret);
     }
+    
+    dma->reader_enabled = enable;
 }
 
 ///* lock */
@@ -184,9 +188,9 @@ int litepcie_dma_init(struct litepcie_dma_ctrl *dma, const char *device_name, ui
 
 void litepcie_dma_cleanup(struct litepcie_dma_ctrl *dma)
 {
-    if (dma->use_reader)
+    if (dma->use_reader && dma->reader_enabled)
         litepcie_dma_reader(dma, 0);
-    if (dma->use_writer)
+    if (dma->use_writer && dma->writer_enabled)
         litepcie_dma_writer(dma, 0);
 
 //    litepcie_release_dma(dma->fds.fd, dma->use_reader, dma->use_writer);
@@ -202,45 +206,49 @@ void litepcie_dma_cleanup(struct litepcie_dma_ctrl *dma)
 void litepcie_dma_process(struct litepcie_dma_ctrl *dma)
 {
     /* set / get dma */
-    if (dma->use_writer)
-        litepcie_dma_writer(dma, 1);
-    if (dma->use_reader)
+    if (dma->use_reader && !dma->reader_enabled)
         litepcie_dma_reader(dma, 1);
+    if (dma->use_writer && !dma->writer_enabled)
+        litepcie_dma_writer(dma, 1);
     
-    if (dma->hw_counts->hwWriterCountTotal > dma->writer_sw_count) {
+    if ((dma->hw_counts->hwWriterCountTotal - dma->writer_sw_count) > 2) {
         /* count available buffers */
-        dma->buffers_available_read = dma->hw_counts->hwWriterCountTotal - dma->writer_sw_count;
+        dma->buffers_available_read = MAX(MIN(dma->hw_counts->hwWriterCountTotal - dma->writer_sw_count, DMA_BUFFER_COUNT), 0);
         dma->usr_read_buf_offset = dma->writer_sw_count % DMA_BUFFER_COUNT;
         dma->writer_sw_count = dma->writer_sw_count + dma->buffers_available_read;
     } else {
         dma->buffers_available_read = 0;
     }
     
-    if (dma->hw_counts->hwReaderCountTotal > dma->reader_sw_count) {
+    if (((int64_t)dma->reader_sw_count - (int64_t)dma->hw_counts->hwReaderCountTotal) < (DMA_BUFFER_COUNT / 2)) {
         /* count available buffers */
-        dma->buffers_available_write = DMA_BUFFER_COUNT / 2 + (dma->hw_counts->hwReaderCountTotal - dma->reader_sw_count);
+        dma->buffers_available_write = MIN(dma->hw_counts->hwReaderCountTotal - dma->reader_sw_count, DMA_BUFFER_COUNT);
         dma->usr_write_buf_offset = dma->reader_sw_count % DMA_BUFFER_COUNT;
         dma->reader_sw_count = dma->reader_sw_count + dma->buffers_available_write;
     } else {
         dma->buffers_available_write = 0;
     }
+    
+    dma->writer_hw_count = dma->hw_counts->hwWriterCountTotal;
+    dma->reader_hw_count = dma->hw_counts->hwReaderCountTotal;
 }
 
 char *litepcie_dma_next_read_buffer(struct litepcie_dma_ctrl *dma)
 {
-    if (dma->hw_counts->hwWriterCountTotal > dma->writer_sw_count) {
-        /* count available buffers */
-        dma->buffers_available_read = dma->hw_counts->hwWriterCountTotal - dma->writer_sw_count;
-        dma->usr_read_buf_offset = dma->writer_sw_count % DMA_BUFFER_COUNT;
-        dma->writer_sw_count = dma->writer_sw_count + dma->buffers_available_read;
-    } else {
-        dma->buffers_available_read = 0;
-    }
+//    if (dma->hw_counts->hwWriterCountTotal > dma->writer_sw_count) {
+//        /* count available buffers */
+//        dma->buffers_available_read = dma->hw_counts->hwWriterCountTotal - dma->writer_sw_count;
+//        dma->usr_read_buf_offset = dma->writer_sw_count % DMA_BUFFER_COUNT;
+//        dma->writer_sw_count = dma->writer_sw_count + dma->buffers_available_read;
+//    } else {
+//        dma->buffers_available_read = 0;
+//    }
     
     if (!dma->buffers_available_read)
         return NULL;
     
     dma->buffers_available_read--;
+    
     uint8_t *ret = dma->buf_rd + dma->usr_read_buf_offset * DMA_BUFFER_SIZE;
     dma->usr_read_buf_offset = (dma->usr_read_buf_offset + 1) % DMA_BUFFER_COUNT;
     return (char*)ret;
@@ -248,14 +256,14 @@ char *litepcie_dma_next_read_buffer(struct litepcie_dma_ctrl *dma)
 
 char *litepcie_dma_next_write_buffer(struct litepcie_dma_ctrl *dma)
 {
-    if (dma->hw_counts->hwReaderCountTotal > dma->reader_sw_count) {
-        /* count available buffers */
-        dma->buffers_available_write = DMA_BUFFER_COUNT / 2 + (dma->hw_counts->hwReaderCountTotal - dma->reader_sw_count);
-        dma->usr_write_buf_offset = dma->reader_sw_count % DMA_BUFFER_COUNT;
-        dma->reader_sw_count = dma->reader_sw_count + dma->buffers_available_write;
-    } else {
-        dma->buffers_available_write = 0;
-    }
+//    if (dma->hw_counts->hwReaderCountTotal > dma->reader_sw_count) {
+//        /* count available buffers */
+//        dma->buffers_available_write = DMA_BUFFER_COUNT / 2 + (dma->hw_counts->hwReaderCountTotal - dma->reader_sw_count);
+//        dma->usr_write_buf_offset = dma->reader_sw_count % DMA_BUFFER_COUNT;
+//        dma->reader_sw_count = dma->reader_sw_count + dma->buffers_available_write;
+//    } else {
+//        dma->buffers_available_write = 0;
+//    }
     
     if (!dma->buffers_available_write)
         return NULL;

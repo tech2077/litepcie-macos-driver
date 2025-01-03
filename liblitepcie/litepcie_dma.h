@@ -25,6 +25,7 @@ struct litepcie_dma_ctrl {
     uint8_t dma_channel;
     uint32_t fd;
     uint8_t use_reader, use_writer, loopback, zero_copy;
+    uint8_t reader_enabled, writer_enabled;
     uint8_t *buf_rd, *buf_wr;
     DMACounts* hw_counts;
     uint64_t reader_sw_count;
